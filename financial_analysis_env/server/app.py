@@ -11,7 +11,7 @@ app = create_fastapi_app(
     observation_cls=FinancialAnalysisObservation,
     
 )
-app.root_path = "/web"
+
 
 # 3. Manually add your custom route so it can't be missed
 def run_test_endpoint():
