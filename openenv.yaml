@@ -7,7 +7,7 @@ entrypoint: financial_analysis_env.server.app:app
 
 interfaces:
   - type: http
-    port: 7860
+    port: 8000
 
 models:
   action: financial_analysis_env.models.FinancialAnalysisAction
