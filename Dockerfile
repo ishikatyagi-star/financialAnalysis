@@ -1,23 +1,21 @@
-FROM python:3.11
+FROM python:3.11-slim
 
 WORKDIR /app
-# This ensures Python can find 'financial_analysis_env' and 'server'
-ENV PYTHONPATH=/app
 
-# 1. Install uv as required by the validator
+# Install uv
 RUN pip install uv
 
-# 2. Copy the config files first (best practice for caching)
-COPY pyproject.toml requirements.txt uv.lock* ./
+# Copy only the dependency files first
+COPY pyproject.toml uv.lock ./
 
-# 3. Install dependencies
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Install the project and dependencies
+RUN uv pip install --system -r pyproject.toml
 
-# 4. Copy the rest of the code
+# Copy the rest of the code
 COPY . .
 
-# 5. Install the local package in editable mode so imports work perfectly
-RUN pip install -e .
+# Set PYTHONPATH so the 'server' can find 'financial_analysis_env'
+ENV PYTHONPATH=/app
 
+# Start the server
 CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
