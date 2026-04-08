@@ -17,7 +17,7 @@ app = create_fastapi_app(
     observation_cls=FinancialAnalysisObservation,
     root_path="/web"
 )
-
+app.root_path = "/web"  # Ensure the root path is set for the app
 app.include_router(custom_router)
 @app.get("/")
 def root():
