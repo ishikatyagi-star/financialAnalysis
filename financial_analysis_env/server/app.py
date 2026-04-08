@@ -12,7 +12,7 @@ app = create_fastapi_app(
     
 )
 
-
+app.root_path = ""
 # 3. Manually add your custom route so it can't be missed
 def run_test_endpoint():
     return {"status": "success", "message": "Endpoint finally reached!"}
