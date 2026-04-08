@@ -4,7 +4,7 @@ from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnal
 from financial_analysis_env.environment import FinancialAnalysisEnvironment
 
 # 1. Create an instance of your environment
-env = FinancialAnalysisEnvironment()
+env = FinancialAnalysisEnvironment
 
 # 2. Pass the instance AND the two classes to the helper function
 app = create_fastapi_app(
