@@ -1,24 +1,21 @@
-FROM python:3.11-slim
+FROM python:3.11
 
 WORKDIR /app
 
-# Install system dependencies (IMPORTANT)
+# Install system deps
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (better caching)
-COPY requirements.txt .
-
-# Upgrade pip (VERY important)
-RUN pip install --upgrade pip
-
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy rest of code
+# Copy everything
 COPY . .
 
-# Run app
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Install YOUR project (this installs openenv-core too)
+RUN pip install .
+
+# Run server
 CMD ["uvicorn", "financial_analysis_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
