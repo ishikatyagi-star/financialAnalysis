@@ -3,12 +3,11 @@ from openenv.core.env_server import create_fastapi_app
 from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
 from financial_analysis_env.environment import FinancialAnalysisEnvironment
 
-# 1. Create an instance of your environment
-env = FinancialAnalysisEnvironment
+
 
 # 2. Pass the instance AND the two classes to the helper function
 app = create_fastapi_app(
-    env, 
+    FinancialAnalysisEnvironment, 
     action_cls=FinancialAnalysisAction, 
     observation_cls=FinancialAnalysisObservation
 )
