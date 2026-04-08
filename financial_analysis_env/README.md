@@ -199,7 +199,7 @@ from financial_analysis_env import FinancialAnalysisAction, FinancialAnalysisEnv
 from concurrent.futures import ThreadPoolExecutor
 
 def run_episode(client_id: int):
-    with FinancialAnalysisEnv(base_url="http://localhost:8000") as env:
+    with FinancialAnalysisEnv(base_url="http://localhost:7860") as env:
         result = env.reset()
         for i in range(10):
             result = env.step(FinancialAnalysisAction(message=f"Client {client_id}, step {i}"))
