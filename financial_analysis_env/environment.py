@@ -95,10 +95,16 @@ _current_state = {"episode_id": str(uuid4()), "step_count": 0}
 class FinancialAnalysisEnvironment:
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
-    # --- ADD THESE FOUR LINES TO FIX THE NEW ERROR ---
-    def reset_async(self): pass 
-    def step_async(self): pass
-    def seed(self, seed=None): pass
+# --- UPDATED DUMMY METHODS (MUST BE ASYNC) ---
+    async def reset_async(self, seed=None, options=None): 
+        return self.reset(seed=seed, options=options)
+        
+    async def step_async(self, action): 
+        return self.step(action)
+        
+    def seed(self, seed=None): 
+        import random
+        random.seed(seed)
     metadata = {"render_modes": []}
     # ------------------------------------------------
 
