@@ -7,7 +7,7 @@ env_instance = FinancialAnalysisEnvironment()
 
 # 2. Generate the app
 app = create_fastapi_app(
-    env_instance, 
+    FinancialAnalysisEnvironment, 
     action_cls=FinancialAnalysisAction, 
     observation_cls=FinancialAnalysisObservation
 )
