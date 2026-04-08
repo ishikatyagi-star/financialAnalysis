@@ -1,0 +1,14 @@
+spec_version: 1
+
+name: financial-analysis-env
+description: RL environment for evaluating AI financial reasoning
+
+entrypoint: financial_analysis_env.server.app:app
+
+interfaces:
+  - type: http
+    port: 8000
+
+models:
+  action: financial_analysis_env.models.FinancialAnalysisAction
+  observation: financial_analysis_env.models.FinancialAnalysisObservation
