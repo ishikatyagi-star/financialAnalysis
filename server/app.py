@@ -1,3 +1,4 @@
+import uvicorn
 from openenv_core.env_server import create_fastapi_app
 from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
 from financial_analysis_env.environment import FinancialAnalysisEnvironment
@@ -43,3 +44,13 @@ def run_test():
         }
     except Exception as e:
         return {"status": "error", "reason": str(e)}
+
+# 3. ADD THIS SECTION TO SATISFY THE VALIDATOR
+def main():
+    """
+    This function is required by the OpenEnv validator to check deployment readiness.
+    """
+    uvicorn.run(app, host="0.0.0.0", port=7860)
+
+if __name__ == "__main__":
+    main()
