@@ -4,12 +4,6 @@ from openenv.core.env_server import create_fastapi_app
 from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
 from financial_analysis_env.environment import FinancialAnalysisEnvironment
 
-custom_router = APIRouter()
-
-@custom_router.get("/run_test")
-def run_test():
-    return {"status": "success", "message": "The endpoint finally works!"}
-
 # 2. Pass the instance AND the two classes to the helper function
 app = create_fastapi_app(
     FinancialAnalysisEnvironment, 
@@ -17,8 +11,14 @@ app = create_fastapi_app(
     observation_cls=FinancialAnalysisObservation,
     
 )
-app.root_path = "/web"  # Ensure the root path is set for the app
-app.include_router(custom_router)
+app.root_path = "/web"
+
+# 3. Manually add your custom route so it can't be missed
+def run_test_endpoint():
+    return {"status": "success", "message": "Endpoint finally reached!"}
+
+app.add_api_route("/run_test", run_test_endpoint, methods=["GET"])
+
 @app.get("/")
 def root():
     return {"message": "OpenEnv server running"}
