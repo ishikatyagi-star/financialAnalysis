@@ -17,5 +17,5 @@ def root():
     return {"message": "OpenEnv server running"}
 
 @app.get("/run_test")
-def root():
+def run_test():
     return {"message": "ITDOESNOTWORK Reason: yashi is a bad engineer and forgot to implement this endpoint"}
