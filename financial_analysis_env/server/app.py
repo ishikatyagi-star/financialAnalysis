@@ -1,26 +1,29 @@
 from fastapi import APIRouter
 from openenv.core.env_server import create_fastapi_app
-# Import your environment and your two model classes
 from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
 from financial_analysis_env.environment import FinancialAnalysisEnvironment
 
-# 2. Pass the instance AND the two classes to the helper function
+# 1. Define your custom routes in a dedicated Router
+custom_router = APIRouter()
+
+@custom_router.get("/run_test")
+def run_test():
+    return {"status": "success", "message": "Finally bypassed the 404!"}
+
+# 2. Create the app instance
+env_instance = FinancialAnalysisEnvironment
 app = create_fastapi_app(
-    FinancialAnalysisEnvironment, 
+    env_instance, 
     action_cls=FinancialAnalysisAction, 
-    observation_cls=FinancialAnalysisObservation,
-    
+    observation_cls=FinancialAnalysisObservation
 )
 
-app.root_path = ""
-# 3. Manually add your custom route so it can't be missed
-def run_test_endpoint():
-    return {"status": "success", "message": "Endpoint finally reached!"}
+# 3. FORCE include the router and reset documentation
+app.include_router(custom_router)
 
-app.add_api_route("/run_test", run_test_endpoint, methods=["GET"])
-
+# This line is CRITICAL for Hugging Face Spaces specifically
+# It forces FastAPI to re-scan for the new /run_test route
 app.openapi_schema = None 
-app.setup() 
 
 @app.get("/")
 def root():
