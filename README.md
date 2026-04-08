@@ -1,3 +1,4 @@
+---
 title: Financial Analysis Environment
 emoji: 📈
 colorFrom: green
