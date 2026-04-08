@@ -14,7 +14,8 @@ def run_test():
 app = create_fastapi_app(
     FinancialAnalysisEnvironment, 
     action_cls=FinancialAnalysisAction, 
-    observation_cls=FinancialAnalysisObservation
+    observation_cls=FinancialAnalysisObservation,
+    root_path="/web"
 )
 
 app.include_router(custom_router)
