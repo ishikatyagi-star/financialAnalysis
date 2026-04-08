@@ -8,7 +8,7 @@ custom_router = APIRouter()
 
 @custom_router.get("/run_test")
 def run_test():
-    return {"status": "success", "message": "Finally bypassed the 404!"}
+    return {"status": "success", "message": "YES I WASTED SO MUCH TIME ON THIS! THE URL WAS WRONG! YASHI DID NOT KNOW WHAT FORMAT URL YOU WERE SUPPOSED TO USE!"}
 
 # 2. Create the app instance
 env_instance = FinancialAnalysisEnvironment
