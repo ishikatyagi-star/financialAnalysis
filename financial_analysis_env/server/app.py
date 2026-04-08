@@ -12,3 +12,10 @@ app = create_fastapi_app(
     action_cls=FinancialAnalysisAction, 
     observation_cls=FinancialAnalysisObservation
 )
+@app.get("/")
+def root():
+    return {"message": "OpenEnv server running"}
+
+@app.get("/run_test")
+def root():
+    return {"message": "ITDOESNOTWORK Reason: yashi is a bad engineer and forgot to implement this endpoint"}
