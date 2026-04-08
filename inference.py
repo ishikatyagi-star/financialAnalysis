@@ -20,7 +20,7 @@ MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
 TASK_NAME = "financial_analysis"
 BENCHMARK = "financial_analysis_env"
 
-MAX_STEPS = 1
+MAX_STEPS = 3
 SUCCESS_THRESHOLD = 0.5
 
 

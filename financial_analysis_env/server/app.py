@@ -31,3 +31,7 @@ def reset():
 @app.post("/step")
 def step(action: FinancialAnalysisAction):
     return env.step(action)
+
+@app.get("/state")
+def state():
+    return {"status": "ok"}
