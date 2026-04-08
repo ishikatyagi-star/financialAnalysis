@@ -95,20 +95,22 @@ _current_state = {"episode_id": str(uuid4()), "step_count": 0}
 class FinancialAnalysisEnvironment:
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
-    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> FinancialAnalysisObservation:
-        """Resets the environment. Accepts seed and options to prevent API crashes."""
-        global _current_task, _current_state
+    # --- ADD THESE FOUR LINES TO FIX THE NEW ERROR ---
+    def reset_async(self): pass 
+    def step_async(self): pass
+    def seed(self, seed=None): pass
+    metadata = {"render_modes": []}
+    # ------------------------------------------------
 
+    def reset(self, seed=None, options=None) -> FinancialAnalysisObservation:
+        global _current_task, _current_state
         if seed is not None:
             random.seed(seed)
 
-        # Initialize state
         _current_state = {
             "episode_id": options.get("episode_id", str(uuid4())) if options else str(uuid4()),
             "step_count": 0
         }
-        
-        # Select a random task
         _current_task = random.choice(TASKS)
 
         return FinancialAnalysisObservation(
@@ -120,93 +122,56 @@ class FinancialAnalysisEnvironment:
         )
 
     def step(self, action: FinancialAnalysisAction) -> FinancialAnalysisObservation:
-        """Executes one step in the environment."""
         global _current_task, _current_state
-
         _current_state["step_count"] += 1
-
         if _current_task is None:
             _current_task = random.choice(TASKS)
 
-        # Calculate reward based on the action provided
         reward = self._calculate_reward(action)
 
         return FinancialAnalysisObservation(
             task_description=_current_task["task_description"],
             financial_data=_current_task["financial_data"],
             difficulty=_current_task["difficulty"],
-            done=True,  # This environment is currently single-step
+            done=True,
             reward=reward,
         )
 
     def _calculate_reward(self, action: FinancialAnalysisAction) -> float:
-        """Helper to compute score based on task difficulty."""
         task = _current_task
         difficulty = task["difficulty"]
         expected = task["expected"]
-
-        # Normalize inputs
         analysis = action.analysis.lower()
         issues = [i.lower() for i in action.identified_issues]
         rec = action.recommendation.lower()
 
-        # Reject empty or very short responses
         if len(analysis.strip()) < 20:
             return 0.0
 
         reward = 0.0
-
-        # EASY REWARD LOGIC
         if difficulty == "easy":
-            if "q2" in " ".join(issues):
-                reward += 0.4
-            if any(x in analysis for x in ["20.8", "20%", "21%"]):
-                reward += 0.3
-            if len(action.recommendation) > 20:
-                reward += 0.3
-
-        # MEDIUM REWARD LOGIC
+            if "q2" in " ".join(issues): reward += 0.4
+            if any(x in analysis for x in ["20.8", "20%", "21%"]): reward += 0.3
+            if len(action.recommendation) > 20: reward += 0.3
         elif difficulty == "medium":
-            if "month 8" in " ".join(issues):
-                reward += 0.4
-            if any(word in analysis for word in ["spike", "anomaly", "unusual"]):
-                reward += 0.3
-            if any(word in rec for word in ["investigate", "audit", "review", "check"]):
-                reward += 0.3
-
-        # HARD REWARD LOGIC
+            if "month 8" in " ".join(issues): reward += 0.4
+            if any(word in analysis for word in ["spike", "anomaly", "unusual"]): reward += 0.3
+            if any(word in rec for word in ["investigate", "audit", "review", "check"]): reward += 0.3
         elif difficulty == "hard":
-            risks_found = 0
-            for risk in expected["top_risks"]:
-                keywords = RISK_KEYWORDS[risk]
-                if any(any(k in issue for k in keywords) for issue in issues):
-                    risks_found += 1
-
-            if risks_found == 0:
-                return 0.0
-
+            risks_found = sum(1 for risk in expected["top_risks"] if any(any(k in issue for k in RISK_KEYWORDS[risk]) for issue in issues))
+            if risks_found == 0: return 0.0
             reward += 0.5 * (risks_found / 3)
             facts_hit = sum(1 for n in expected["key_numbers"] if n in analysis)
             reward += 0.3 * (facts_hit / 3)
             rec_hits = sum(1 for risk in expected["top_risks"] if risk in rec)
             reward += 0.2 * (rec_hits / 3)
+            reward *= min(len(action.identified_issues) / 3, 1)
 
-            # Structure penalty/bonus
-            issue_count = len(action.identified_issues)
-            reward *= min(issue_count / 3, 1)
-
-        # Final cleanup of reward value
-        reward = max(0.0, min(reward, 1.0))
-        return float(round(reward, 2))
+        return float(round(max(0.0, min(reward, 1.0)), 2))
 
     def close(self):
-        """
-        Required to fix AttributeError. 
-        The OpenEnv server calls this during reset or shutdown.
-        """
         pass
 
     @property
     def state(self) -> dict:
-        """Returns the current state dictionary."""
         return _current_state
