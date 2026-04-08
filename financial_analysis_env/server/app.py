@@ -18,4 +18,4 @@ def root():
 
 @app.get("/run_test")
 def run_test():
-    return {"message": "ITDOESNOTWORK Reason: yashi is a bad engineer and forgot to implement this endpoint"}
+    return {"test": "ITDOESNOTWORK Reason: yashi is a bad engineer and forgot to implement this endpoint"}
