@@ -23,6 +23,7 @@ def _hard_grader(action, expected):
     analysis = action.analysis.lower()
     rec = action.recommendation.lower()
 
+    # Score how many of the 3 required risks appear in identified_issues
     risks_found = sum(
         1 for risk in expected["top_risks"]
         if any(any(k in issue for k in RISK_KEYWORDS[risk]) for issue in issues)
@@ -30,13 +31,84 @@ def _hard_grader(action, expected):
     if risks_found == 0:
         return 0.0
 
+    # Base: 0–0.5 based on risks found (0.5 only if all 3 found)
     reward = 0.5 * (risks_found / 3)
-    reward += 0.3 * (sum(1 for n in expected["key_numbers"] if n in analysis) / 3)
-    reward += 0.2 * (sum(1 for r in expected["top_risks"] if r in rec) / 3)
-    reward *= min(len(action.identified_issues) / 3, 1)
-    reward += 0.05 * min(
-        sum(1 for w in ["because", "due to", "driven by", "as a result"] if w in analysis), 2
+
+    # Up to 0.3 for citing key numbers in analysis
+    numbers_cited = sum(1 for n in expected["key_numbers"] if n in analysis)
+    reward += 0.3 * (numbers_cited / len(expected["key_numbers"]))
+
+    # Up to 0.2 for addressing risks in recommendation
+    risks_in_rec = sum(
+        1 for risk in expected["top_risks"]
+        if any(k in rec for k in RISK_KEYWORDS[risk])
     )
+    reward += 0.2 * (risks_in_rec / 3)
+
+    # Small causal language bonus, capped at +0.05
+    causal_words = ["because", "due to", "driven by", "as a result"]
+    causal_count = sum(1 for w in causal_words if w in analysis)
+    reward += 0.05 * min(causal_count, 1)
+
+    # Penalty if fewer than 3 issues identified
+    if len(action.identified_issues) < 3:
+        reward *= len(action.identified_issues) / 3
+
+    return round(max(0.0, min(reward, 1.0)), 2)
+
+
+def _easy_grader(action, expected):
+    issues_text = " ".join(i.lower() for i in action.identified_issues)
+    analysis = action.analysis.lower()
+    rec = action.recommendation.lower()
+
+    reward = 0.0
+
+    # 0.4 for identifying Q2 as best quarter
+    if "q2" in issues_text or "q2" in analysis:
+        reward += 0.4
+
+    # 0.3 for citing the growth percentage (must be specific)
+    if any(x in analysis for x in ["20.8", "20.83"]):
+        reward += 0.3
+    elif any(x in analysis for x in ["20%", "21%"]):
+        reward += 0.15  # partial credit for ballpark
+
+    # 0.3 for a substantive recommendation
+    action_words = ["invest", "replicate", "sustain", "promote", "campaign", "continue", "expand"]
+    if len(rec) > 40 and any(w in rec for w in action_words):
+        reward += 0.3
+    elif len(rec) > 20:
+        reward += 0.1  # partial credit
+
+    return round(max(0.0, min(reward, 1.0)), 2)
+
+
+def _medium_grader(action, expected):
+    issues_text = " ".join(i.lower() for i in action.identified_issues)
+    analysis = action.analysis.lower()
+    rec = action.recommendation.lower()
+
+    reward = 0.0
+
+    # 0.4 for identifying month 8 specifically
+    if "month 8" in issues_text or "month 8" in analysis:
+        reward += 0.4
+
+    # 0.3 for characterising the anomaly correctly
+    anomaly_words = ["spike", "anomaly", "unusual", "outlier", "jump", "surge"]
+    if any(w in analysis for w in anomaly_words):
+        reward += 0.3
+
+    # 0.3 for an actionable recommendation
+    action_words = ["investigate", "audit", "review", "check", "examine", "escalate"]
+    if any(w in rec for w in action_words):
+        reward += 0.3
+
+    # Penalty if issues list is empty
+    if len(action.identified_issues) == 0:
+        reward *= 0.5
+
     return round(max(0.0, min(reward, 1.0)), 2)
 
 
@@ -66,13 +138,9 @@ TASKS = [
         },
         "expected": {
             "best_quarter": "Q2",
-            "growth_pct": 20.8,   # (290-240)/240 * 100 = 20.83%
+            "growth_pct": 20.8,
         },
-        "grader": lambda action, expected: (
-            (0.4 if "q2" in " ".join(i.lower() for i in action.identified_issues) else 0.0)
-            + (0.3 if any(x in action.analysis.lower() for x in ["20.8", "20%", "21%"]) else 0.0)
-            + (0.3 if len(action.recommendation) > 20 else 0.0)
-        ),
+        "grader": lambda action, expected: _easy_grader(action, expected),
     },
 
     # ── MEDIUM ────────────────────────────────────────────────────────────────
@@ -96,7 +164,7 @@ TASKS = [
                 "Month 5":  119,
                 "Month 6":  123,
                 "Month 7":  121,
-                "Month 8":  310,   # ← anomaly
+                "Month 8":  310,
                 "Month 9":  124,
                 "Month 10": 120,
                 "Month 11": 126,
@@ -107,11 +175,7 @@ TASKS = [
         "expected": {
             "anomaly_month": "Month 8",
         },
-        "grader": lambda action, expected: (
-            (0.4 if "month 8" in " ".join(i.lower() for i in action.identified_issues) else 0.0)
-            + (0.3 if any(w in action.analysis.lower() for w in ["spike", "anomaly", "unusual"]) else 0.0)
-            + (0.3 if any(w in action.recommendation.lower() for w in ["investigate", "audit", "review", "check"]) else 0.0)
-        ),
+        "grader": lambda action, expected: _medium_grader(action, expected),
     },
 
     # ── HARD ──────────────────────────────────────────────────────────────────
@@ -130,21 +194,21 @@ TASKS = [
             "currency": "USD (thousands)",
             "revenue": {
                 "H1": 1200,
-                "H2": 1380,   # key number
+                "H2": 1380,
             },
             "gross_margin_pct": {
                 "Q1": 68,
                 "Q2": 63,
                 "Q3": 58,
-                "Q4": 51,    # key number — declining margin
+                "Q4": 51,
             },
             "customer_acquisition": {
                 "new_customers_H1": 42,
                 "new_customers_H2": 39,
-                "sales_marketing_spend_H1": 198,   # key number
+                "sales_marketing_spend_H1": 198,
                 "sales_marketing_spend_H2": 310,
-                "cac_H1": round(198 / 42, 1),      # ~4.7k
-                "cac_H2": round(310 / 39, 1),      # ~7.9k
+                "cac_H1": round(198 / 42, 1),
+                "cac_H2": round(310 / 39, 1),
             },
             "operating_expenses": {
                 "H1_total": 820,
