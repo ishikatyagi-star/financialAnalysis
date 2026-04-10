@@ -293,6 +293,42 @@ _current_state = {"episode_id": str(uuid4()), "step_count": 0}
 
 class FinancialAnalysisEnvironment:
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
+    metadata = {"render_modes": []}
+
+    def __init__(self):
+        self._current_task = None
+        self._episode_id = str(uuid4())
+        self._step_count = 0
+
+    def reset(self, seed=None, options=None) -> FinancialAnalysisObservation:
+        if seed is not None:
+            random.seed(seed)
+        self._episode_id = options.get("episode_id", str(uuid4())) if options else str(uuid4())
+        self._step_count = 0
+        self._current_task = random.choice(TASKS)
+
+        return FinancialAnalysisObservation(
+            task_description=self._current_task["task_description"],
+            financial_data=self._current_task["financial_data"],
+            difficulty=self._current_task["difficulty"],
+            done=False,
+            reward=0.0,
+        )
+
+    def step(self, action: FinancialAnalysisAction) -> FinancialAnalysisObservation:
+        self._step_count += 1
+        if self._current_task is None:
+            self._current_task = random.choice(TASKS)
+
+        reward = self._current_task["grader"](action, self._current_task["expected"])
+
+        return FinancialAnalysisObservation(
+            task_description=self._current_task["task_description"],
+            financial_data=self._current_task["financial_data"],
+            difficulty=self._current_task["difficulty"],
+            done=True,
+            reward=reward,
+        )
 
     async def reset_async(self, seed=None, options=None):
         return self.reset(seed=seed, options=options)
@@ -300,53 +336,12 @@ class FinancialAnalysisEnvironment:
     async def step_async(self, action):
         return self.step(action)
 
-    def seed(self, seed=None):
-        random.seed(seed)
-
-    metadata = {"render_modes": []}
-
-    def reset(self, seed=None, options=None) -> FinancialAnalysisObservation:
-        global _current_task, _current_state
-        if seed is not None:
-            random.seed(seed)
-
-        _current_state = {
-            "episode_id": options.get("episode_id", str(uuid4())) if options else str(uuid4()),
-            "step_count": 0,
-        }
-        _current_task = random.choice(TASKS)
-
-        return FinancialAnalysisObservation(
-            task_description=_current_task["task_description"],
-            financial_data=_current_task["financial_data"],
-            difficulty=_current_task["difficulty"],
-            done=False,
-            reward=0.0,
-        )
-
-    def step(self, action: FinancialAnalysisAction) -> FinancialAnalysisObservation:
-        global _current_task, _current_state
-        _current_state["step_count"] += 1
-
-        if _current_task is None:
-            _current_task = random.choice(TASKS)
-
-        reward = _current_task["grader"](action, _current_task["expected"])
-
-        return FinancialAnalysisObservation(
-            task_description=_current_task["task_description"],
-            financial_data=_current_task["financial_data"],
-            difficulty=_current_task["difficulty"],
-            done=True,
-            reward=reward,
-        )
-
-    def _calculate_reward(self, action: FinancialAnalysisAction) -> float:
-        return _current_task["grader"](action, _current_task["expected"])
-
     def close(self):
-        pass
+        self._current_task = None
 
     @property
     def state(self) -> dict:
-        return _current_state
+        return {
+            "episode_id": self._episode_id,
+            "step_count": self._step_count,
+        }
