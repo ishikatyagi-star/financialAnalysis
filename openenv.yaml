@@ -1,7 +1,12 @@
 spec_version: 1
 
 name: financial-analysis-env
-description: RL environment for evaluating AI financial reasoning
+description: >
+  RL environment for training agents to analyze financial data.
+  Tasks range from quarterly trend analysis (easy) to full risk
+  assessments for Series B fundraising (hard). Each task has a
+  programmatic grader with deterministic success criteria and
+  partial progress signals.
 
 entrypoint: financial_analysis_env.server.app:app
 
@@ -12,3 +17,22 @@ interfaces:
 models:
   action: financial_analysis_env.models.FinancialAnalysisAction
   observation: financial_analysis_env.models.FinancialAnalysisObservation
+
+tasks:
+  - id: easy
+    name: Quarterly Revenue Analysis
+    description: Identify best quarter, calculate growth %, recommend action
+    difficulty: easy
+    grader: financial_analysis_env.environment.grade_easy
+
+  - id: medium
+    name: Expense Anomaly Detection
+    description: Detect anomalous month in opex data, quantify, recommend next step
+    difficulty: medium
+    grader: financial_analysis_env.environment.grade_medium
+
+  - id: hard
+    name: Series B Risk Assessment
+    description: Identify top 3 risks with evidence and targeted recommendations
+    difficulty: hard
+    grader: financial_analysis_env.environment.grade_hard
