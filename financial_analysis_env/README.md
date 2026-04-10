@@ -1,7 +1,7 @@
 ---
 title: Financial Analysis Env Environment Server
-emoji: 📲
-colorFrom: purple
+emoji: 📊
+colorFrom: green
 colorTo: blue
 sdk: docker
 pinned: false
@@ -11,245 +11,225 @@ tags:
   - openenv
 ---
 
-# Financial Analysis Env Environment
+# Financial Analysis Environment
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+## Motivation
 
-## Quick Start
+Financial analysis is a high-stakes, real-world task that requires reasoning over structured numeric data, identifying patterns, and producing actionable insights. This environment trains AI agents to perform the kind of analysis a junior financial analyst would do — given raw financial data, the agent must identify what matters, support it with numbers, and recommend a course of action.
 
-The simplest way to use the Financial Analysis Env environment is through the `FinancialAnalysisEnv` class:
+This directly maps to real products (automated financial reporting, CFO dashboards, investment screening tools) and provides a clean, verifiable reward signal with natural partial credit.
 
-```python
-from financial_analysis_env import FinancialAnalysisAction, FinancialAnalysisEnv
+---
 
-try:
-    # Create environment from Docker image
-    financial_analysis_envenv = FinancialAnalysisEnv.from_docker_image("financial_analysis_env-env:latest")
+## Environment Description
 
-    # Reset
-    result = financial_analysis_envenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
+The agent receives a financial dataset and must produce a structured analysis. Tasks range from simple trend identification to comprehensive risk assessments. Each task has a programmatic grader that scores the response strictly between 0 and 1, rewarding:
+- Correct identification of the key finding
+- Quantitative support (citing specific numbers from the data)
+- Quality and specificity of recommendations
+- Causal reasoning depth
 
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
+---
 
-    for msg in messages:
-        result = financial_analysis_envenv.step(FinancialAnalysisAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
-        print(f"  → Reward: {result.reward}")
+## Action Space
 
-finally:
-    # Always clean up
-    financial_analysis_envenv.close()
-```
+The agent submits a `FinancialAnalysisAction` with three fields:
 
-That's it! The `FinancialAnalysisEnv.from_docker_image()` method handles:
-- Starting the Docker container
-- Waiting for the server to be ready
-- Connecting to the environment
-- Container cleanup when you call `close()`
-
-## Building the Docker Image
-
-Before using the environment, you need to build the Docker image:
-
-```bash
-# From project root
-docker build -t financial_analysis_env-env:latest -f server/Dockerfile .
-```
-
-## Deploying to Hugging Face Spaces
-
-You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
-
-```bash
-# From the environment directory (where openenv.yaml is located)
-openenv push
-
-# Or specify options
-openenv push --namespace my-org --private
-```
-
-The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
-
-### Prerequisites
-
-- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
-
-### Options
-
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
-- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
-- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
-- `--private`: Deploy the space as private (default: public)
-
-### Examples
-
-```bash
-# Push to your personal namespace (defaults to username/env-name from openenv.yaml)
-openenv push
-
-# Push to a specific repository
-openenv push --repo-id my-org/my-env
-
-# Push with a custom base image
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
-
-# Push as a private space
-openenv push --private
-
-# Combine options
-openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
-```
-
-After deployment, your space will be available at:
-`https://huggingface.co/spaces/<repo-id>`
-
-The deployed space includes:
-- **Web Interface** at `/web` - Interactive UI for exploring the environment
-- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
-- **Health Check** at `/health` - Container health monitoring
-- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
-
-## Environment Details
-
-### Action
-**FinancialAnalysisAction**: Contains a single field
-- `message` (str) - The message to echo back
-
-### Observation
-**FinancialAnalysisObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
-- `metadata` (dict) - Additional info like step count
-
-### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
-
-## Advanced Usage
-
-### Connecting to an Existing Server
-
-If you already have a Financial Analysis Env environment server running, you can connect directly:
+| Field | Type | Description |
+|---|---|---|
+| `identified_issues` | `List[str]` | List of issues/findings identified in the data. Minimum 3 for hard tasks. |
+| `analysis` | `str` | Detailed analysis supporting the identified issues with numbers from the data |
+| `recommendation` | `str` | Specific, actionable recommendations addressing the findings |
 
 ```python
-from financial_analysis_env import FinancialAnalysisEnv
-
-# Connect to existing server
-financial_analysis_envenv = FinancialAnalysisEnv(base_url="<ENV_HTTP_URL_HERE>")
-
-# Use as normal
-result = financial_analysis_envenv.reset()
-result = financial_analysis_envenv.step(FinancialAnalysisAction(message="Hello!"))
-```
-
-Note: When connecting to an existing server, `financial_analysis_envenv.close()` will NOT stop the server.
-
-### Using the Context Manager
-
-The client supports context manager usage for automatic connection management:
-
-```python
-from financial_analysis_env import FinancialAnalysisAction, FinancialAnalysisEnv
-
-# Connect with context manager (auto-connects and closes)
-with FinancialAnalysisEnv(base_url="http://localhost:8000") as env:
-    result = env.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-    # Multiple steps with low latency
-    for msg in ["Hello", "World", "!"]:
-        result = env.step(FinancialAnalysisAction(message=msg))
-        print(f"Echoed: {result.observation.echoed_message}")
-```
-
-The client uses WebSocket connections for:
-- **Lower latency**: No HTTP connection overhead per request
-- **Persistent session**: Server maintains your environment state
-- **Efficient for episodes**: Better for many sequential steps
-
-### Concurrent WebSocket Sessions
-
-The server supports multiple concurrent WebSocket connections. To enable this,
-modify `server/app.py` to use factory mode:
-
-```python
-# In server/app.py - use factory mode for concurrent sessions
-app = create_app(
-    FinancialAnalysisEnvironment,  # Pass class, not instance
-    FinancialAnalysisAction,
-    FinancialAnalysisObservation,
-    max_concurrent_envs=4,  # Allow 4 concurrent sessions
+FinancialAnalysisAction(
+    identified_issues=[
+        "Q2 was the best performing quarter with revenue of 290k",
+        "Q1 to Q2 growth was 20.8%",
+        "Q3 and Q4 show declining momentum"
+    ],
+    analysis="Q2 achieved peak revenue of 290k, representing 20.8% growth from Q1's 240k, driven by the summer promotion campaign. Q3 and Q4 declined to 275k and 260k respectively.",
+    recommendation="Sustain Q2 momentum by replicating the summer promotion campaign annually and expanding it to Q3 to reduce the seasonal drop-off."
 )
 ```
 
-Then multiple clients can connect simultaneously:
+---
+
+## Observation Space
+
+The environment returns a `FinancialAnalysisObservation` after each `reset()` and `step()`:
+
+| Field | Type | Description |
+|---|---|---|
+| `task_description` | `str` | Full description of the task the agent must complete |
+| `financial_data` | `dict` | Structured financial data (revenue, expenses, ratios, etc.) |
+| `difficulty` | `str` | Task difficulty: `"easy"`, `"medium"`, or `"hard"` |
+| `done` | `bool` | `False` after reset, `True` after step (single-turn environment) |
+| `reward` | `float` | Score strictly in `(0, 1)` — only set after `step()` |
+
+---
+
+## Tasks
+
+### Task 0 — Easy: Quarterly Revenue Analysis
+
+**Objective**: Given quarterly revenue data for a retail company, identify the best-performing quarter, calculate the precise growth percentage from Q1 to Q2, and recommend how to sustain that performance.
+
+**Data provided**: 4 quarters of revenue figures + contextual notes
+
+**Grader criteria**:
+| Criterion | Weight | What earns it |
+|---|---|---|
+| Correct quarter identified | 0.35 | "Q2" labeled as best/highest/peak in issues or analysis |
+| Precise growth % cited | 0.35 | "20.8%" or "20.83%" in analysis (not just "~20%") |
+| Actionable recommendation | 0.30 | Forward-looking verb (sustain/replicate/expand) + Q2 reference |
+
+**Baseline score**: `0.07` (dummy action) → `~0.88` (correct answer)
+
+---
+
+### Task 1 — Medium: Expense Anomaly Detection
+
+**Objective**: Given 12 months of operating expense data for a SaaS company, identify which month contains an anomaly, explain what makes it unusual with quantitative comparison, and recommend a specific next step for the finance team.
+
+**Data provided**: Monthly opex figures across 12 months (one month has a 2.5x spike)
+
+**Grader criteria**:
+| Criterion | Weight | What earns it |
+|---|---|---|
+| Correct month identified | 0.35 | "Month 8" in issues or analysis + magnitude/comparison |
+| Anomaly characterised | 0.30 | Anomaly word (spike/outlier/deviation) + reasoning word (average/baseline/compared) |
+| Specific recommendation | 0.25 | Action verb (investigate/audit/review) paired with context (month 8/310/expense) |
+
+**Baseline score**: `0.09` (dummy action) → `~0.89` (correct answer)
+
+---
+
+### Task 2 — Hard: Series B Risk Assessment
+
+**Objective**: Given 12 months of financial data for a B2B SaaS startup preparing for a Series B raise, identify the top 3 financial risks, support each with specific numbers from the data, and provide targeted recommendations for each risk.
+
+**Data provided**: Revenue (H1/H2), gross margin by quarter, CAC and S&M spend (H1/H2), opex figures, headcount notes
+
+**Grader criteria**:
+| Criterion | Weight | What earns it |
+|---|---|---|
+| All 3 risks identified in issues | 0.28 | Margin + CAC + OpEx each present in `identified_issues` |
+| Key numbers cited with context | 0.28 | "51", "198", "1380" each appearing near relevant domain words |
+| Targeted recommendations | 0.24 | Domain word + action verb pairs per risk (e.g. "cac" + "reduce") |
+| Causal reasoning | 0.12 | 2+ causal phrases ("due to", "driven by", "as a result", etc.) |
+| Bonus numbers | 0.08 | Additional data points cited (7.9, 4.7, 28, 35) |
+
+**Baseline score**: `0.02` (dummy action) → `~0.92` (correct answer)
+
+---
+
+## Reward Function
+
+All graders return a float **strictly between 0 and 1** (clamped to `[0.02, 0.97]`).
+
+Rewards provide **partial progress signals** — the agent is not penalized for partial answers, but must demonstrate increasing quality to unlock higher scores:
+
+```
+0.02 – 0.20  : Wrong or missing key finding
+0.20 – 0.50  : Correct finding, weak support
+0.50 – 0.75  : Correct finding, partial quantitative support
+0.75 – 0.97  : Correct finding, strong numbers, specific recommendations
+```
+
+---
+
+## Setup & Usage
+
+### Local Development
+
+```bash
+git clone https://github.com/YOUR_USERNAME/mutantsSubmission
+cd mutantsSubmission
+pip install -r requirements.txt
+uvicorn server.app:app --reload --port 7860
+```
+
+### Docker
+
+```bash
+docker build -t financial-analysis-env .
+docker run -p 7860:7860 financial-analysis-env
+```
+
+### Python Client
 
 ```python
 from financial_analysis_env import FinancialAnalysisAction, FinancialAnalysisEnv
-from concurrent.futures import ThreadPoolExecutor
 
-def run_episode(client_id: int):
-    with FinancialAnalysisEnv(base_url="http://localhost:7860") as env:
-        result = env.reset()
-        for i in range(10):
-            result = env.step(FinancialAnalysisAction(message=f"Client {client_id}, step {i}"))
-        return client_id, result.observation.message_length
+with FinancialAnalysisEnv(base_url="https://YOUR_SPACE.hf.space") as env:
+    obs = env.reset()
+    print(obs.observation.task_description)
+    print(obs.observation.difficulty)
 
-# Run 4 episodes concurrently
-with ThreadPoolExecutor(max_workers=4) as executor:
-    results = list(executor.map(run_episode, range(4)))
+    result = env.step(FinancialAnalysisAction(
+        identified_issues=[
+            "Q2 was the best performing quarter with revenue of 290k",
+            "Growth from Q1 to Q2 was 20.8%"
+        ],
+        analysis="Q2 revenue reached 290k, a 20.8% increase from Q1's 240k, driven by the summer promotion campaign.",
+        recommendation="Sustain Q2 momentum by replicating the summer promotion and expanding it into Q3."
+    ))
+    print(f"Reward: {result.reward}")
 ```
 
-## Development & Testing
+### Environment Variables
 
-### Direct Environment Testing
+| Variable | Description | Default |
+|---|---|---|
+| `API_BASE_URL` | LLM API endpoint | `https://api.openai.com/v1` |
+| `MODEL_NAME` | Model identifier | `gpt-4.1-mini` |
+| `HF_TOKEN` | Hugging Face / API key | Required |
 
-Test the environment logic directly without starting the HTTP server:
+---
 
-```bash
-# From the server directory
-python3 server/financial_analysis_env_environment.py
-```
+## Baseline Scores
 
-This verifies that:
-- Environment resets correctly
-- Step executes actions properly
-- State tracking works
-- Rewards are calculated correctly
+Scores from running `inference.py` with `gpt-4.1-mini` on each task:
 
-### Running Locally
+| Task | Difficulty | Baseline Score |
+|---|---|---|
+| Quarterly Revenue Analysis | Easy | 0.07 (dummy) |
+| Expense Anomaly Detection | Medium | 0.09 (dummy) |
+| Series B Risk Assessment | Hard | 0.02 (dummy) |
 
-Run the server locally for development:
+Run `/run_test` on the deployed Space to verify all graders are working.
 
-```bash
-uvicorn server.app:app --reload
-```
+---
+
+## Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `/web` | Interactive web UI |
+| `/docs` | OpenAPI / Swagger docs |
+| `/health` | Health check |
+| `/tasks` | List all 3 tasks with grader metadata |
+| `/run_test` | Run all 3 graders and verify reward range |
+
+---
 
 ## Project Structure
 
 ```
-financial_analysis_env/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # FinancialAnalysisEnv client
-├── models.py              # Action and Observation models
-└── server/
-    ├── __init__.py        # Server module exports
-    ├── financial_analysis_env_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
-    └── Dockerfile         # Container image definition
+mutantsSubmission/
+├── financial_analysis_env/
+│   ├── __init__.py
+│   ├── environment.py          # Core environment + 3 graders (easy/medium/hard)
+│   ├── models.py               # FinancialAnalysisAction + FinancialAnalysisObservation
+│   └── README.md               # This file
+├── server/
+│   ├── __init__.py
+│   └── app.py                  # FastAPI app (reset/step/state + /tasks /health /run_test)
+├── inference.py                # Agent script — LLM calls + [START]/[STEP]/[END] logs
+├── openenv.yaml                # OpenEnv manifest
+├── Dockerfile                  # Container definition
+├── pyproject.toml              # Project metadata and dependencies
+├── requirements.txt            # Python dependencies
+└── uv.lock                     # Locked dependencies
 ```
