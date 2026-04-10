@@ -2,7 +2,7 @@ import re
 import os
 import random
 from uuid import uuid4
-from typing import Optional, Any
+from typing import Optional, Any, Tuple
 
 try:
     from .models import FinancialAnalysisAction, FinancialAnalysisObservation
@@ -13,21 +13,12 @@ except ImportError:
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def _clamp(reward: float) -> float:
-    """Strictly (0, 1) — validator requires this."""
     return round(max(0.02, min(reward, 0.97)), 2)
 
-
 def _whole_number(n: str, text: str) -> bool:
-    """True if n appears as a standalone number in text (not inside 1380k, 510, etc.)"""
     return bool(re.search(r'(?<!\d)' + re.escape(n) + r'(?!\d)', text))
 
-
 def _near(number: str, context_words: list, text: str, window: int = 80) -> float:
-    """
-    Returns 1.0 if number appears near a context word (within `window` chars).
-    Returns 0.4 if number appears but without context.
-    Returns 0.0 if number not found.
-    """
     m = re.search(r'(?<!\d)' + re.escape(number) + r'(?!\d)', text)
     if not m:
         return 0.0
@@ -35,110 +26,139 @@ def _near(number: str, context_words: list, text: str, window: int = 80) -> floa
     return 1.0 if any(w in surrounding for w in context_words) else 0.4
 
 
-# ── GRADERS ───────────────────────────────────────────────────────────────────
+# ── GRADERS — return (float, dict) for partial progress signals ───────────────
 
-def _easy_grader(action, expected):
-    issues = " ".join(i.lower() for i in action.identified_issues)
+def grade_easy(action: FinancialAnalysisAction, expected: dict) -> Tuple[float, dict]:
+    issues   = " ".join(i.lower() for i in action.identified_issues)
     analysis = action.analysis.lower()
-    rec = action.recommendation.lower()
-    score = 0.0
+    rec      = action.recommendation.lower()
 
-    # 0.35 — correct quarter identified as best (must say best/highest near Q2)
     qualifier = ["best", "highest", "top", "strongest", "peak", "most"]
-    if "q2" in issues and any(w in issues for w in qualifier):
-        score += 0.35
-    elif "q2" in analysis and any(w in analysis for w in qualifier):
-        score += 0.22
+    fwd       = ["replicate", "sustain", "invest", "expand", "promote", "scale", "continue", "repeat"]
 
-    # 0.35 — growth % cited with precision (20.83% is correct)
-    if re.search(r'20\.8[0-9]?', analysis):
-        score += 0.35
+    # ── Deterministic success criteria (binary) ───────────────────────────────
+    q2_correct     = ("q2" in issues and any(w in issues for w in qualifier)) or \
+                     ("q2" in analysis and any(w in analysis for w in qualifier))
+    growth_correct = bool(re.search(r'20\.8[0-9]?', analysis))
+    rec_correct    = len(rec) > 40 and any(w in rec for w in fwd)
+
+    # ── Partial scoring ───────────────────────────────────────────────────────
+    quarter_score = 0.0
+    if q2_correct:
+        quarter_score = 0.35
+    elif "q2" in issues or "q2" in analysis:
+        quarter_score = 0.10  # found Q2 but no qualifier
+
+    growth_score = 0.0
+    if growth_correct:
+        growth_score = 0.35
     elif re.search(r'20\.[5-9]', analysis):
-        score += 0.20
+        growth_score = 0.15
     elif "20%" in analysis or "21%" in analysis:
-        score += 0.08
+        growth_score = 0.06
 
-    # 0.30 — recommendation must mention Q2 + forward-looking action
-    fwd = ["replicate", "sustain", "invest", "expand", "promote", "scale", "continue", "repeat"]
-    if len(rec) > 60 and any(w in rec for w in fwd) and "q2" in rec:
-        score += 0.30
-    elif len(rec) > 40 and any(w in rec for w in fwd):
-        score += 0.18
+    rec_score = 0.0
+    if rec_correct and "q2" in rec:
+        rec_score = 0.30
+    elif rec_correct:
+        rec_score = 0.15
     elif len(rec) > 20:
-        score += 0.07
+        rec_score = 0.05
 
-    return _clamp(score)
+    score = quarter_score + growth_score + rec_score
+
+    return _clamp(score), {
+        "criteria": {
+            "q2_identified_as_best": q2_correct,
+            "growth_pct_precise":    growth_correct,
+            "recommendation_actionable": rec_correct,
+        },
+        "partial_scores": {
+            "quarter":        round(quarter_score, 2),
+            "growth":         round(growth_score, 2),
+            "recommendation": round(rec_score, 2),
+        },
+        "success": q2_correct and growth_correct and rec_correct,
+    }
 
 
-def _medium_grader(action, expected):
-    issues = " ".join(i.lower() for i in action.identified_issues)
+def grade_medium(action: FinancialAnalysisAction, expected: dict) -> Tuple[float, dict]:
+    issues   = " ".join(i.lower() for i in action.identified_issues)
     analysis = action.analysis.lower()
-    rec = action.recommendation.lower()
-    score = 0.0
+    rec      = action.recommendation.lower()
 
-    # 0.35 — Month 8 identified; bonus for quantifying magnitude
-    if "month 8" in issues or "month 8" in analysis:
-        magnitude = any(_whole_number(n, analysis) for n in ["310", "2.5", "150"])
-        has_comparison = any(w in analysis for w in ["average", "baseline", "typical", "normal", "compared"])
-        if magnitude and has_comparison:
-            score += 0.35
-        elif magnitude or has_comparison:
-            score += 0.25
-        else:
-            score += 0.15  # identified but not quantified
-
-    # 0.30 — anomaly characterised with reasoning, not just labeled
-    anomaly_words  = ["spike", "anomaly", "unusual", "outlier", "jump", "surge", "deviation", "irregularity"]
+    anomaly_words   = ["spike", "anomaly", "unusual", "outlier", "jump", "surge", "deviation", "irregularity"]
     reasoning_words = ["compared to", "average", "baseline", "normal", "typical", "expected", "significantly"]
-    if any(w in analysis for w in anomaly_words) and any(w in analysis for w in reasoning_words):
-        score += 0.30
-    elif any(w in analysis for w in anomaly_words):
-        score += 0.14
-
-    # 0.25 — specific recommendation (verb must be paired with context, not standalone)
-    specific = [
+    specific_verbs  = [
         ("investigate", ["month 8", "310", "expense", "charge", "vendor", "cost"]),
         ("audit",       ["expense", "charge", "opex", "month 8"]),
         ("review",      ["month 8", "expense", "opex", "charge", "cost"]),
         ("escalate",    ["finance", "cfo", "management", "leadership"]),
         ("examine",     ["month 8", "expense", "charge", "310"]),
     ]
-    for verb, contexts in specific:
-        if verb in rec and any(ctx in rec for ctx in contexts):
-            score += 0.25
-            break
-    else:
-        if any(verb in rec for verb, _ in specific):
-            score += 0.09  # verb present but no context
 
+    # ── Deterministic success criteria (binary) ───────────────────────────────
+    month_correct  = "month 8" in issues or "month 8" in analysis
+    value_correct  = _whole_number("310", analysis)
+    rec_specific   = any(
+        verb in rec and any(ctx in rec for ctx in contexts)
+        for verb, contexts in specific_verbs
+    )
+
+    # ── Partial scoring ───────────────────────────────────────────────────────
+    id_score = 0.0
+    if month_correct:
+        magnitude   = value_correct
+        has_compare = any(w in analysis for w in reasoning_words)
+        if magnitude and has_compare:
+            id_score = 0.35
+        elif magnitude or has_compare:
+            id_score = 0.25
+        else:
+            id_score = 0.15
+
+    char_score = 0.0
+    if any(w in analysis for w in anomaly_words) and any(w in analysis for w in reasoning_words):
+        char_score = 0.30
+    elif any(w in analysis for w in anomaly_words):
+        char_score = 0.14
+
+    rec_score_val = 0.0
+    if rec_specific:
+        rec_score_val = 0.25
+    elif any(verb in rec for verb, _ in specific_verbs):
+        rec_score_val = 0.08
+
+    score = id_score + char_score + rec_score_val
     if len(action.identified_issues) == 0:
         score *= 0.4
 
-    return _clamp(score)
+    return _clamp(score), {
+        "criteria": {
+            "anomaly_month_correct": month_correct,   # only Month 8 is correct
+            "anomaly_value_cited":   value_correct,   # 310 must appear
+            "recommendation_specific": rec_specific,
+        },
+        "partial_scores": {
+            "identification":    round(id_score, 2),
+            "characterization":  round(char_score, 2),
+            "recommendation":    round(rec_score_val, 2),
+        },
+        "success": month_correct and value_correct and rec_specific,
+    }
 
 
-def _hard_grader(action, expected):
-    issues = [i.lower() for i in action.identified_issues]
+def grade_hard(action: FinancialAnalysisAction, expected: dict) -> Tuple[float, dict]:
+    issues      = [i.lower() for i in action.identified_issues]
     issues_text = " ".join(issues)
-    analysis = action.analysis.lower()
-    rec = action.recommendation.lower()
+    analysis    = action.analysis.lower()
+    rec         = action.recommendation.lower()
 
     RISK_KEYWORDS = {
         "margin": ["margin", "gross margin", "profitability"],
         "cac":    ["cac", "customer acquisition cost", "acquisition cost"],
         "opex":   ["opex", "operating expense", "operating cost"],
     }
-
-    # ── 1. Risk identification in issues list (0.28) ──────────────────────────
-    risks_in_issues = sum(
-        1 for kws in RISK_KEYWORDS.values()
-        if any(k in issues_text for k in kws)
-    )
-    if risks_in_issues == 0:
-        return _clamp(0.02)  # nothing identified — floor score
-    risk_score = 0.28 * (risks_in_issues / 3)
-
-    # ── 2. Key numbers cited with domain context (0.28) ───────────────────────
     number_contexts = {
         "51":   ["margin", "gross", "q4", "percent", "%"],
         "198":  ["h1", "sales", "marketing", "spend", "cac"],
@@ -146,18 +166,10 @@ def _hard_grader(action, expected):
         "4.7":  ["cac", "h1", "acquisition"],
         "7.9":  ["cac", "h2", "acquisition"],
     }
-    required = expected["key_numbers"]  # ["51", "198", "1380"]
-    num_score = sum(
-        _near(num, number_contexts[num], analysis)
-        for num in required
-    )
-    num_score = 0.28 * (num_score / len(required))
-
-    # ── 3. Recommendation — domain word + action verb pairs (0.24) ────────────
     rec_pairs = {
         "margin": [
-            ("margin",  ["improve", "recover", "protect", "increase", "optimize", "pricing", "raise"]),
-            ("gross",   ["improve", "recover", "protect", "increase", "optimize"]),
+            ("margin", ["improve", "recover", "protect", "increase", "optimize", "pricing", "raise"]),
+            ("gross",  ["improve", "recover", "protect", "increase", "optimize"]),
         ],
         "cac": [
             ("cac",         ["reduce", "optimize", "improve", "lower", "cut", "efficiency"]),
@@ -169,37 +181,63 @@ def _hard_grader(action, expected):
             ("headcount",         ["review", "freeze", "control", "justify", "limit"]),
         ],
     }
-    rec_hits = 0
+    causal_phrases = ["because", "due to", "driven by", "as a result",
+                      "contributed to", "led to", "caused by", "resulting in", "attributed to"]
+
+    # ── Deterministic success criteria (binary per risk) ──────────────────────
+    risks_found = {
+        risk: any(k in issues_text for k in kws)
+        for risk, kws in RISK_KEYWORDS.items()
+    }
+    numbers_cited = {
+        n: _near(n, number_contexts[n], analysis) > 0.5
+        for n in expected["key_numbers"]
+    }
+    rec_addressed = {}
     for risk, pairs in rec_pairs.items():
-        for domain, verbs in pairs:
-            if domain in rec and any(v in rec for v in verbs):
-                rec_hits += 1
-                break
-    rec_score = 0.24 * (rec_hits / 3)
+        rec_addressed[risk] = any(
+            domain in rec and any(v in rec for v in verbs)
+            for domain, verbs in pairs
+        )
 
-    # ── 4. Causal reasoning depth (0.12) ──────────────────────────────────────
-    causal = ["because", "due to", "driven by", "as a result",
-              "contributed to", "led to", "caused by", "resulting in", "attributed to"]
-    causal_hits = sum(1 for p in causal if p in analysis)
-    causal_score = 0.12 * min(causal_hits / 2, 1.0)  # needs 2+ to max out
+    n_risks = sum(risks_found.values())
+    if n_risks == 0:
+        return _clamp(0.02), {
+            "criteria": {"risks_identified": risks_found, "numbers_cited": numbers_cited, "rec_addressed": rec_addressed},
+            "partial_scores": {"risk": 0.0, "numbers": 0.0, "recommendation": 0.0, "causal": 0.0, "bonus": 0.0},
+            "success": False,
+        }
 
-    # ── 5. Bonus: extra numbers cited (0.08) ──────────────────────────────────
-    bonus_nums = ["7.9", "4.7", "28", "35"]
-    bonus_hits = sum(1 for n in bonus_nums if _whole_number(n, analysis))
-    bonus_score = 0.08 * min(bonus_hits / 2, 1.0)
+    risk_score   = 0.28 * (n_risks / 3)
+    num_score    = 0.28 * (sum(_near(n, number_contexts[n], analysis) for n in expected["key_numbers"]) / len(expected["key_numbers"]))
+    rec_score    = 0.24 * (sum(rec_addressed.values()) / 3)
+    causal_hits  = sum(1 for p in causal_phrases if p in analysis)
+    causal_score = 0.12 * min(causal_hits / 2, 1.0)
+    bonus_nums   = ["7.9", "4.7", "28", "35"]
+    bonus_score  = 0.08 * min(sum(1 for n in bonus_nums if _whole_number(n, analysis)) / 2, 1.0)
 
-    # ── Penalties ─────────────────────────────────────────────────────────────
     issue_penalty  = (len(issues) / 3) if len(issues) < 3 else 1.0
-    length_penalty = 1.0
-    if len(action.analysis) < 80:
-        length_penalty *= 0.55
-    if len(action.recommendation) < 60:
-        length_penalty *= 0.65
+    length_penalty = (0.55 if len(action.analysis) < 80 else 1.0) * \
+                     (0.65 if len(action.recommendation) < 60 else 1.0)
 
-    total = (risk_score + num_score + rec_score + causal_score + bonus_score)
-    total *= issue_penalty * length_penalty
+    total = (risk_score + num_score + rec_score + causal_score + bonus_score) * issue_penalty * length_penalty
 
-    return _clamp(total)
+    return _clamp(total), {
+        "criteria": {
+            "risks_identified": risks_found,        # dict — which of 3 risks found
+            "numbers_cited":    numbers_cited,       # dict — which numbers cited in context
+            "rec_addressed":    rec_addressed,       # dict — which risks addressed in rec
+            "causal_reasoning": causal_hits >= 2,
+        },
+        "partial_scores": {
+            "risk_identification":    round(risk_score, 2),
+            "quantitative_support":   round(num_score, 2),
+            "recommendation_quality": round(rec_score, 2),
+            "reasoning_depth":        round(causal_score, 2),
+            "bonus":                  round(bonus_score, 2),
+        },
+        "success": n_risks == 3 and all(numbers_cited.values()) and all(rec_addressed.values()),
+    }
 
 
 # ── TASK DEFINITIONS ──────────────────────────────────────────────────────────
@@ -214,14 +252,12 @@ TASKS = [
             "or build on that performance."
         ),
         "financial_data": {
-            "company": "RetailCo",
-            "period": "Annual",
-            "currency": "USD (thousands)",
+            "company": "RetailCo", "period": "Annual", "currency": "USD (thousands)",
             "quarterly_revenue": {"Q1": 240, "Q2": 290, "Q3": 275, "Q4": 260},
             "notes": "Q2 included a successful summer promotion campaign.",
         },
         "expected": {"best_quarter": "Q2", "growth_pct": 20.8},
-        "grader": lambda action, expected: _easy_grader(action, expected),
+        "grader": lambda action, expected: grade_easy(action, expected),
     },
     {
         "difficulty": "medium",
@@ -232,19 +268,16 @@ TASKS = [
             "next step for the finance team."
         ),
         "financial_data": {
-            "company": "SaaSify Inc.",
-            "period": "January – December",
-            "currency": "USD (thousands)",
+            "company": "SaaSify Inc.", "period": "January – December", "currency": "USD (thousands)",
             "monthly_opex": {
-                "Month 1": 120, "Month 2": 118, "Month 3": 125,
-                "Month 4": 122, "Month 5": 119, "Month 6": 123,
-                "Month 7": 121, "Month 8": 310, "Month 9": 124,
-                "Month 10": 120, "Month 11": 126, "Month 12": 122,
+                "Month 1": 120, "Month 2": 118, "Month 3": 125, "Month 4": 122,
+                "Month 5": 119, "Month 6": 123, "Month 7": 121, "Month 8": 310,
+                "Month 9": 124, "Month 10": 120, "Month 11": 126, "Month 12": 122,
             },
             "notes": "No major planned events or one-time charges were pre-disclosed for Month 8.",
         },
         "expected": {"anomaly_month": "Month 8"},
-        "grader": lambda action, expected: _medium_grader(action, expected),
+        "grader": lambda action, expected: grade_medium(action, expected),
     },
     {
         "difficulty": "hard",
@@ -256,40 +289,27 @@ TASKS = [
             "customer acquisition costs, and operating expense growth carefully."
         ),
         "financial_data": {
-            "company": "GrowthLoop B2B",
-            "period": "Last 12 months",
-            "currency": "USD (thousands)",
+            "company": "GrowthLoop B2B", "period": "Last 12 months", "currency": "USD (thousands)",
             "revenue": {"H1": 1200, "H2": 1380},
             "gross_margin_pct": {"Q1": 68, "Q2": 63, "Q3": 58, "Q4": 51},
             "customer_acquisition": {
-                "new_customers_H1": 42,          "new_customers_H2": 39,
+                "new_customers_H1": 42, "new_customers_H2": 39,
                 "sales_marketing_spend_H1": 198, "sales_marketing_spend_H2": 310,
-                "cac_H1": 4.7,                   "cac_H2": 7.9,
+                "cac_H1": 4.7, "cac_H2": 7.9,
             },
-            "operating_expenses": {
-                "H1_total": 820, "H2_total": 1050, "yoy_opex_growth_pct": 28,
-            },
-            "notes": (
-                "Company is pre-profitability. Headcount grew 35% in H2. "
-                "No significant one-time charges recorded."
-            ),
+            "operating_expenses": {"H1_total": 820, "H2_total": 1050, "yoy_opex_growth_pct": 28},
+            "notes": "Company is pre-profitability. Headcount grew 35% in H2. No significant one-time charges recorded.",
         },
         "expected": {
             "top_risks": ["margin", "cac", "opex"],
             "key_numbers": ["51", "198", "1380"],
         },
-        "grader": lambda action, expected: _hard_grader(action, expected),
+        "grader": lambda action, expected: grade_hard(action, expected),
     },
 ]
 
 
-# ── GLOBAL STATE ──────────────────────────────────────────────────────────────
-
-_current_task  = None
-_current_state = {"episode_id": str(uuid4()), "step_count": 0}
-
-
-# ── ENVIRONMENT CLASS (unchanged) ─────────────────────────────────────────────
+# ── ENVIRONMENT CLASS ─────────────────────────────────────────────────────────
 
 class FinancialAnalysisEnvironment:
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
@@ -297,14 +317,14 @@ class FinancialAnalysisEnvironment:
 
     def __init__(self):
         self._current_task = None
-        self._episode_id = str(uuid4())
-        self._step_count = 0
+        self._episode_id   = str(uuid4())
+        self._step_count   = 0
 
     def reset(self, seed=None, options=None) -> FinancialAnalysisObservation:
         if seed is not None:
             random.seed(seed)
-        self._episode_id = options.get("episode_id", str(uuid4())) if options else str(uuid4())
-        self._step_count = 0
+        self._episode_id  = options.get("episode_id", str(uuid4())) if options else str(uuid4())
+        self._step_count  = 0
         self._current_task = random.choice(TASKS)
 
         return FinancialAnalysisObservation(
@@ -313,6 +333,7 @@ class FinancialAnalysisEnvironment:
             difficulty=self._current_task["difficulty"],
             done=False,
             reward=0.0,
+            reward_breakdown=None,
         )
 
     def step(self, action: FinancialAnalysisAction) -> FinancialAnalysisObservation:
@@ -320,7 +341,7 @@ class FinancialAnalysisEnvironment:
         if self._current_task is None:
             self._current_task = random.choice(TASKS)
 
-        reward = self._current_task["grader"](action, self._current_task["expected"])
+        reward, breakdown = self._current_task["grader"](action, self._current_task["expected"])
 
         return FinancialAnalysisObservation(
             task_description=self._current_task["task_description"],
@@ -328,6 +349,7 @@ class FinancialAnalysisEnvironment:
             difficulty=self._current_task["difficulty"],
             done=True,
             reward=reward,
+            reward_breakdown=breakdown,
         )
 
     async def reset_async(self, seed=None, options=None):
@@ -341,7 +363,4 @@ class FinancialAnalysisEnvironment:
 
     @property
     def state(self) -> dict:
-        return {
-            "episode_id": self._episode_id,
-            "step_count": self._step_count,
-        }
+        return {"episode_id": self._episode_id, "step_count": self._step_count}

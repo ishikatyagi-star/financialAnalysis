@@ -1,4 +1,6 @@
 from pydantic import BaseModel, Field
+from typing import Optional
+from openenv.core.env_server.types import Action, Observation
 
 class FinancialAnalysisAction(BaseModel):
     model_config = {"extra": "allow"}
@@ -16,3 +18,4 @@ class FinancialAnalysisObservation(BaseModel):
     difficulty: str = Field(default="easy", description="easy, medium, or hard")
     done: bool = Field(default=False, description="Whether the episode is finished")
     reward: float = Field(default=0.0, description="The reward for the last action")
+    reward_breakdown: Optional[dict] = None  # partial progress signal

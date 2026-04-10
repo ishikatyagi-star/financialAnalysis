@@ -1,164 +1,140 @@
-import asyncio
 import os
 import json
 import re
-from typing import List, Optional
+import sys
+from typing import List
 from openai import OpenAI
 
 from financial_analysis_env.environment import FinancialAnalysisEnvironment
 from financial_analysis_env.models import FinancialAnalysisAction
 
+# ── CONFIG ────────────────────────────────────────────────────────────────────
 
-# ── CONFIG ─────────────────────────────────────────
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME   = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN     = os.getenv("HF_TOKEN")
 
-IMAGE_NAME = os.getenv("IMAGE_NAME")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+if not HF_TOKEN:
+    raise ValueError("HF_TOKEN environment variable is required")
 
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
-
-TASK_NAME = "financial_analysis"
-BENCHMARK = "financial_analysis_env"
-
-MAX_STEPS = 3
+TASK_NAME  = "financial_analysis"
+BENCHMARK  = "financial_analysis_env"
 SUCCESS_THRESHOLD = 0.5
 
-
-# ── LOGGING ────────────────────────────────────────
+# ── LOGGING ───────────────────────────────────────────────────────────────────
 
 def log_start(task, env, model):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
-
-def log_step(step, action, reward, done, error):
-    error_val = error if error else "null"
+def log_step(step, action, reward, done, error=None):
     print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}",
-        flush=True,
+        f"[STEP] step={step} action={action} reward={reward:.2f} "
+        f"done={str(done).lower()} error={error if error else 'null'}",
+        flush=True
     )
 
-
-def log_end(success, steps, score, rewards):
+def log_end(success, steps, rewards):
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
-        flush=True,
+        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
+        flush=True
     )
 
+# ── LLM CALL ──────────────────────────────────────────────────────────────────
 
-# ── LLM CALL ───────────────────────────────────────
+def get_model_response(client: OpenAI, task_description: str, financial_data: dict) -> dict:
+    prompt = f"""You are a financial analyst.
 
-def get_model_response(client, task_description, financial_data):
-    prompt = f"""
-    You are a financial analyst.
+Task:
+{task_description}
 
-    Task:
-    {task_description}
+Data:
+{json.dumps(financial_data, indent=2)}
 
-    Data:
-    {financial_data}
-
-    Respond ONLY in JSON:
-    {{
-      "analysis": "...",
-      "identified_issues": ["..."],
-      "recommendation": "..."
-    }}
-    """
+Respond ONLY with a JSON object, no markdown, no explanation:
+{{
+  "identified_issues": ["issue 1", "issue 2", "issue 3"],
+  "analysis": "detailed analysis citing specific numbers...",
+  "recommendation": "specific actionable recommendation..."
+}}"""
 
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=300,
+            temperature=0.0,   # reproducible
+            max_tokens=600,
         )
-
         text = (completion.choices[0].message.content or "").strip()
-    except Exception:
-        text = ""
-
-    def safe_parse(text):
+        text = re.sub(r"```json|```", "", text).strip()
+        return json.loads(text)
+    except Exception as e:
+        # Try extracting JSON from messy output
         try:
-            return json.loads(text)
-        except:
-            # Try extracting JSON from messy output
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
-                try:
-                    return json.loads(match.group())
-                except:
-                    pass
-
+                return json.loads(match.group())
+        except Exception:
+            pass
         return {
-            "analysis": text,
             "identified_issues": [],
-            "recommendation": text,
+            "analysis": f"Parse error: {e}",
+            "recommendation": "",
         }
 
-    return safe_parse(text)
+# ── MAIN ──────────────────────────────────────────────────────────────────────
 
+def main():
+    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
-# ── MAIN ───────────────────────────────────────────
+    # Import TASKS directly to iterate all 3 deterministically
+    from financial_analysis_env.environment import TASKS
 
-async def main():
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-
-    env = FinancialAnalysisEnvironment()
-
-    rewards: List[float] = []
-    steps_taken = 0
-    score = 0.0
-    success = False
+    all_rewards: List[float] = []
+    total_steps = 0
 
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
 
-    try:
-        result = env.reset()
+    for i, task in enumerate(TASKS):
+        step_num = i + 1
+        try:
+            # Force each task directly — no random.choice
+            env = FinancialAnalysisEnvironment()
+            env._current_task = task
+            env._episode_id   = f"episode-{task['difficulty']}"
+            env._step_count   = 0
 
-        obs = result
-
-        for step in range(1, MAX_STEPS + 1):
-            action_dict = get_model_response(
-                client,
-                obs.task_description,
-                obs.financial_data,
-            )
-
-            action = FinancialAnalysisAction(**action_dict)
-
-            result = env.step(action)
+            action_dict = get_model_response(client, task["task_description"], task["financial_data"])
+            action      = FinancialAnalysisAction(**action_dict)
+            result      = env.step(action)
 
             reward = result.reward or 0.0
-            done = result.done
-
-            rewards.append(reward)
-            steps_taken = step
+            done   = result.done
+            all_rewards.append(reward)
+            total_steps += 1
 
             log_step(
-                step=step,
-                action=str(action_dict),
+                step=step_num,
+                action=f"financial_analysis_{task['difficulty']}",
                 reward=reward,
                 done=done,
-                error=None,
+            )
+            env.close()
+
+        except Exception as e:
+            all_rewards.append(0.0)
+            total_steps += 1
+            log_step(
+                step=step_num,
+                action="error",
+                reward=0.0,
+                done=True,
+                error=str(e).replace("\n", " "),
             )
 
-            if done:
-                break
-
-        score = min(max(sum(rewards), 0.0), 1.0)
-        success = score >= SUCCESS_THRESHOLD
-
-    finally:
-        try:
-            await env.close()
-        except:
-            pass
-
-        log_end(success, steps_taken, score, rewards)
+    success = all(r >= SUCCESS_THRESHOLD for r in all_rewards)
+    log_end(success=success, steps=total_steps, rewards=all_rewards)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-    async def close(self): # ADD THIS
-        pass
+    main()
