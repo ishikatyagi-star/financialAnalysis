@@ -23,16 +23,16 @@ tasks:
     name: Quarterly Revenue Analysis
     description: Identify best quarter, calculate growth %, recommend action
     difficulty: easy
-    grader: financial_analysis_env.environment:grade_easy
+    grader: financial_analysis_env.environment.grade_easy
 
   - id: medium
     name: Expense Anomaly Detection
     description: Detect anomalous month in opex data, quantify, recommend next step
     difficulty: medium
-    grader: financial_analysis_env.environment:grade_medium
+    grader: financial_analysis_env.environment.grade_medium
 
   - id: hard
     name: Series B Risk Assessment
     description: Identify top 3 risks with evidence and targeted recommendations
     difficulty: hard
-    grader: financial_analysis_env.environment:grade_hard
+    grader: financial_analysis_env.environment.grade_hard
