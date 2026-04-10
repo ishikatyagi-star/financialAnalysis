@@ -17,69 +17,64 @@ RISK_KEYWORDS = {
     "opex": ["opex", "operating expense", "cost increase", "expenses rising"]
 }
 
+def _hard_grader(action, expected):
+    issues = [i.lower() for i in action.identified_issues]
+    analysis = action.analysis.lower()
+    rec = action.recommendation.lower()
+    
+    risks_found = sum(
+        1 for risk in expected["top_risks"]
+        if any(any(k in issue for k in RISK_KEYWORDS[risk]) for issue in issues)
+    )
+    if risks_found == 0:
+        return 0.0
+    
+    reward = 0.5 * (risks_found / 3)
+    reward += 0.3 * (sum(1 for n in expected["key_numbers"] if n in analysis) / 3)
+    reward += 0.2 * (sum(1 for r in expected["top_risks"] if r in rec) / 3)
+    reward *= min(len(action.identified_issues) / 3, 1)
+    reward += 0.05 * min(sum(1 for w in ["because", "due to", "driven by", "as a result"] if w in analysis), 2)
+    return round(max(0.0, min(reward, 1.0)), 2)
 
 # ── TASK DEFINITIONS ──────────────────────────────────────────────────────────
 
 TASKS = [
     {
         "difficulty": "easy",
-        "task_description": (
-            "Below is quarterly revenue data for a company (in $M). "
-            "Identify which quarter had the highest revenue GROWTH compared to the previous quarter. "
-            "In your analysis, state the quarter name and calculate the growth percentage. "
-            "In identified_issues, put the winning quarter name (e.g. 'Q2'). "
-            "In recommendation, suggest one thing the company should do to sustain this growth."
-        ),
-        "financial_data": {
-            "Q1": 120,
-            "Q2": 145,
-            "Q3": 152,
-            "Q4": 158,
-        },
+        "task_description": (...),
+        "financial_data": {...},
         "expected": {
             "best_quarter": "Q2",
             "growth_pct": 20.8,
         },
+        "grader": lambda action, expected: (
+            (0.4 if "q2" in " ".join(i.lower() for i in action.identified_issues) else 0.0) +
+            (0.3 if any(x in action.analysis.lower() for x in ["20.8", "20%", "21%"]) else 0.0) +
+            (0.3 if len(action.recommendation) > 20 else 0.0)
+        ),
     },
     {
         "difficulty": "medium",
-        "task_description": (
-            "Below is a monthly P&L summary (in $K) for a company. "
-            "Revenue has been stable. Analyze the expense column and identify any anomaly. "
-            "In your analysis, name the month with the anomaly and explain what it likely means. "
-            "In identified_issues, list the anomalous month (e.g. 'Month 8'). "
-            "In recommendation, suggest what the finance team should investigate."
-        ),
-        "financial_data": {
-            "revenue": {f"Month {i}": 500 for i in range(1, 13)},
-            "expenses": {
-                "Month 1": 310, "Month 2": 318, "Month 3": 305,
-                "Month 4": 312, "Month 5": 308, "Month 6": 315,
-                "Month 7": 311, "Month 8": 487,
-                "Month 9": 309, "Month 10": 314, "Month 11": 307, "Month 12": 313,
-            },
-        },
+        "task_description": (...),
+        "financial_data": {...},
         "expected": {
             "anomaly_month": "Month 8",
         },
+        "grader": lambda action, expected: (
+            (0.4 if "month 8" in " ".join(i.lower() for i in action.identified_issues) else 0.0) +
+            (0.3 if any(w in action.analysis.lower() for w in ["spike", "anomaly", "unusual"]) else 0.0) +
+            (0.3 if any(w in action.recommendation.lower() for w in ["investigate", "audit", "review", "check"]) else 0.0)
+        ),
     },
     {
         "difficulty": "hard",
-        "task_description": (
-            "Below is 3 years of annual financial data for a company. "
-            "Analyze trends across revenue, gross margin, operating expenses, and CAC. "
-            "Identify top 3 risks with supporting numbers. "
-            "List 3 risks in identified_issues and give actions in recommendation."
-        ),
-        "financial_data": {
-            "Year 1": {"revenue": 2100, "gross_margin_pct": 62, "opex": 980, "CAC": 120},
-            "Year 2": {"revenue": 2250, "gross_margin_pct": 57, "opex": 1150, "CAC": 155},
-            "Year 3": {"revenue": 2280, "gross_margin_pct": 51, "opex": 1380, "CAC": 198},
-        },
+        "task_description": (...),
+        "financial_data": {...},
         "expected": {
             "top_risks": ["margin", "cac", "opex"],
             "key_numbers": ["51", "198", "1380"],
         },
+        "grader": lambda action, expected: _hard_grader(action, expected),
     },
 ]
 
@@ -145,35 +140,10 @@ class FinancialAnalysisEnvironment:
 
     def _calculate_reward(self, action: FinancialAnalysisAction) -> float:
         task = _current_task
-        difficulty = task["difficulty"]
-        expected = task["expected"]
-        analysis = action.analysis.lower()
-        issues = [i.lower() for i in action.identified_issues]
-        rec = action.recommendation.lower()
-
-        # START WITH A SMALL BASELINE TO AVOID 0.0
-        reward = 0.05 
-
-        if difficulty == "easy":
-            if "q2" in " ".join(issues): reward += 0.3
-            if any(x in analysis for x in ["20.8", "20%", "21%"]): reward += 0.3
-            if len(action.recommendation) > 20: reward += 0.3
-        elif difficulty == "medium":
-            if "month 8" in " ".join(issues): reward += 0.3
-            if any(word in analysis for word in ["spike", "anomaly", "unusual"]): reward += 0.3
-            if any(word in rec for word in ["investigate", "audit", "review", "check"]): reward += 0.3
-        elif difficulty == "hard":
-            risks_found = sum(1 for risk in expected["top_risks"] if any(any(k in issue for k in RISK_KEYWORDS[risk]) for issue in issues))
-            reward += 0.4 * (risks_found / 3)
-            facts_hit = sum(1 for n in expected["key_numbers"] if n in analysis)
-            reward += 0.3 * (facts_hit / 3)
-            rec_hits = sum(1 for risk in expected["top_risks"] if risk in rec)
-            reward += 0.2 * (rec_hits / 3)
-
-        # FINAL CLAMPING: MUST BE STRICTLY (0, 1)
-        # This ensures the score is never 0.0 and never 1.0
-        final_score = float(round(max(0.01, min(reward, 0.99)), 2))
-        return final_score
+        grader = task.get("grader")
+        if grader:
+            return grader(action, task["expected"])
+        return 0.0
 
     def close(self):
         pass
