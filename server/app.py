@@ -36,12 +36,22 @@ def health():
 @app.get("/run_test")
 def run_test():
     try:
-        env = FinancialAnalysisEnvironment()
-        
         results = []
-        # Test ALL 3 tasks by seeding deterministically
-        for seed in [0, 1, 2]:
-            obs = env.reset(seed=seed)
+        # Force each task directly instead of relying on random seeds
+        for i, task in enumerate(TASKS):
+            env = FinancialAnalysisEnvironment()
+            env._current_task = task  # force the specific task
+            env._episode_id = str(uuid4())
+            env._step_count = 0
+
+            obs = FinancialAnalysisObservation(
+                task_description=task["task_description"],
+                financial_data=task["financial_data"],
+                difficulty=task["difficulty"],
+                done=False,
+                reward=0.0,
+            )
+
             action = FinancialAnalysisAction(
                 analysis="Test analysis of financial data with some numbers.",
                 identified_issues=["test issue one", "test issue two", "test issue three"],
@@ -49,13 +59,13 @@ def run_test():
             )
             result = env.step(action)
             results.append({
-                "seed": seed,
-                "difficulty": obs.difficulty,
+                "task_index": i,
+                "difficulty": task["difficulty"],
                 "reward": result.reward,
                 "done": result.done,
-                "reward_in_range": 0.0 < result.reward < 1.0  # validator check
+                "reward_in_range": 0.0 < result.reward < 1.0
             })
-        
+
         return {"status": "success", "results": results}
     except Exception as e:
         return {"status": "error", "reason": str(e)}
