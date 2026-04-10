@@ -17,5 +17,5 @@ class FinancialAnalysisObservation(BaseModel):
     financial_data: dict = Field(default_factory=dict, description="The financial data to analyze")
     difficulty: str = Field(default="easy", description="easy, medium, or hard")
     done: bool = Field(default=False, description="Whether the episode is finished")
-    reward: float = Field(default=0.0, description="The reward for the last action")
+    reward: Optional[float] = Field(default=None, description="The reward for the last action (None until step() is called)")
     reward_breakdown: Optional[dict] = None  # partial progress signal

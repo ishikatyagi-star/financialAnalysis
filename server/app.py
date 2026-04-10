@@ -32,7 +32,7 @@ def list_tasks():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "tasks_with_graders": len(TASKS)}
+    return {"status": "healthy", "tasks_with_graders": len(TASKS)}
 
 @app.get("/run_test")
 def run_test():

@@ -320,19 +320,37 @@ class FinancialAnalysisEnvironment:
         self._episode_id   = str(uuid4())
         self._step_count   = 0
 
-    def reset(self, seed=None, options=None) -> FinancialAnalysisObservation:
+    # Map of task IDs (matching openenv.yaml) → TASKS indices
+    _TASK_ID_MAP = {"easy": 0, "medium": 1, "hard": 2}
+
+    def reset(self, seed=None, task_id=None, episode_id=None, options=None) -> FinancialAnalysisObservation:
         if seed is not None:
             random.seed(seed)
-        self._episode_id  = options.get("episode_id", str(uuid4())) if options else str(uuid4())
-        self._step_count  = 0
-        self._current_task = random.choice(TASKS)
+
+        # Support episode_id from both the framework kwarg and legacy options dict
+        if episode_id:
+            self._episode_id = episode_id
+        elif options and isinstance(options, dict):
+            self._episode_id = options.get("episode_id", str(uuid4()))
+        else:
+            self._episode_id = str(uuid4())
+
+        self._step_count = 0
+
+        # Allow the checker/caller to select a specific task by ID
+        if task_id is not None and task_id in self._TASK_ID_MAP:
+            self._current_task = TASKS[self._TASK_ID_MAP[task_id]]
+        elif options and isinstance(options, dict) and options.get("task_id") in self._TASK_ID_MAP:
+            self._current_task = TASKS[self._TASK_ID_MAP[options["task_id"]]]
+        else:
+            self._current_task = random.choice(TASKS)
 
         return FinancialAnalysisObservation(
             task_description=self._current_task["task_description"],
             financial_data=self._current_task["financial_data"],
             difficulty=self._current_task["difficulty"],
             done=False,
-            reward=0.0,
+            reward=None,       # No reward until step() is called
             reward_breakdown=None,
         )
 
@@ -352,8 +370,8 @@ class FinancialAnalysisEnvironment:
             reward_breakdown=breakdown,
         )
 
-    async def reset_async(self, seed=None, options=None):
-        return self.reset(seed=seed, options=options)
+    async def reset_async(self, seed=None, task_id=None, episode_id=None, options=None):
+        return self.reset(seed=seed, task_id=task_id, episode_id=episode_id, options=options)
 
     async def step_async(self, action):
         return self.step(action)
