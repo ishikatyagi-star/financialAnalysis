@@ -42,4 +42,4 @@ server = "financial_analysis_env.server.app:main"
 [tool.setuptools]
 include-package-data = true
 packages = ["financial_analysis_env", "financial_analysis_env.server"]
-package-dir = { "financial_analysis_env" = ".", "financial_analysis_env.server" = "server" }
+package-dir = { "financial_analysis_env.server" = "server" }

@@ -7,9 +7,18 @@
 """Financial Analysis Env Environment."""
 
 from .models import FinancialAnalysisAction, FinancialAnalysisObservation
+from .environment import (
+    FinancialAnalysisEnvironment,
+    grade_easy,
+    grade_medium,
+    grade_hard,
+)
 
 __all__ = [
     "FinancialAnalysisAction",
     "FinancialAnalysisObservation",
-    "FinancialAnalysisEnv",
+    "FinancialAnalysisEnvironment",
+    "grade_easy",
+    "grade_medium",
+    "grade_hard",
 ]

@@ -20,12 +20,12 @@ def list_tasks():
     return {
         "tasks": [
             {
-                "id": i,
+                "id": t["difficulty"],
                 "difficulty": t["difficulty"],
                 "description": t["task_description"],
                 "has_grader": True,  # explicit flag
             }
-            for i, t in enumerate(TASKS)
+            for t in TASKS
         ],
         "total": len(TASKS)
     }
@@ -44,14 +44,6 @@ def run_test():
             env._current_task = task  # force the specific task
             env._episode_id = str(uuid4())
             env._step_count = 0
-
-            obs = FinancialAnalysisObservation(
-                task_description=task["task_description"],
-                financial_data=task["financial_data"],
-                difficulty=task["difficulty"],
-                done=False,
-                reward=0.0,
-            )
 
             action = FinancialAnalysisAction(
                 analysis="Test analysis of financial data with some numbers.",

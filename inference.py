@@ -81,13 +81,13 @@ def get_model_response(client, task_description, financial_data):
     def safe_parse(text):
         try:
             return json.loads(text)
-        except:
+        except Exception:
             # Try extracting JSON from messy output
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
                 try:
                     return json.loads(match.group())
-                except:
+                except Exception:
                     pass
 
         return {
@@ -150,15 +150,9 @@ async def main():
         success = score >= SUCCESS_THRESHOLD
 
     finally:
-        try:
-            await env.close()
-        except:
-            pass
-
+        env.close()
         log_end(success, steps_taken, score, rewards)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-    async def close(self): # ADD THIS
-        pass
