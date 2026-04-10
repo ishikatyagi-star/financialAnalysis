@@ -1,4 +1,5 @@
 import uvicorn
+from uuid import uuid4
 from openenv.core.env_server import create_fastapi_app
 from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
 from financial_analysis_env.environment import FinancialAnalysisEnvironment, TASKS
