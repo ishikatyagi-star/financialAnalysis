@@ -1,6 +1,5 @@
 name: financial-analysis-env
 version: 0.1.0
-spec_version: 1
 entrypoint: server.financial_analysis_environment:FinancialAnalysisOpenEnv
 description: >-
   RL environment for training agents to analyze financial data.
@@ -15,33 +14,16 @@ tags:
   - financial-analysis
   - agent-benchmark
 
-tasks:
-  - id: easy
-    name: "Revenue Trend Analysis"
-    description: "Identify the top-performing quarter and calculate percentage growth from Q1 to Q2."
-    difficulty: "easy"
-    grader: financial_analysis_env:grade_easy
-  - id: medium
-    name: "Expense Anomaly Detection"
-    description: "Detect a significant spike in monthly OPEX and recommend audit steps."
-    difficulty: "medium"
-    grader: financial_analysis_env:grade_medium
-  - id: hard
-    name: "Series B Risk Assessment"
-    description: "Perform a multi-dimensional analysis of CAC, margins, and OPEX growth."
-    difficulty: "hard"
-    grader: financial_analysis_env:grade_hard
-  - id: expert
-    name: "Cash Runway & Covenant Audit"
-    description: "Calculate runway and evaluate debt covenant risks based on starting cash and burn rate."
-    difficulty: "expert"
-    grader: financial_analysis_env:grade_expert
-
 metadata:
   domain: financial_analysis
   max_turns: 1
-  reward_range: [0.0, 1.0]
+  reward_range: [0.01, 0.99]
   episode_length: 1
+  tasks:
+    - easy
+    - medium
+    - hard
+    - expert
   task_progression:
     easy: quarterly revenue analysis with straightforward data
     medium: expense anomaly detection with monthly data patterns

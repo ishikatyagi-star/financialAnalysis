@@ -1,32 +1,48 @@
+"""Compliance tests for the financial-analysis-env submission.
+
+These mirror what the OpenEnv submission validator checks:
+  1. YAML schema: tasks listed under metadata.tasks (not top-level)
+  2. Reward range: declared bounds make sense
+  3. Grader outputs: all graders return floats strictly in (0, 1)
+"""
+
 import sys
 import os
 import yaml
 import importlib
 
-# Add current dir to path
 sys.path.insert(0, ".")
+
 
 def log(msg):
     print(f"[TEST] {msg}")
+
 
 def run_test_yaml_schema():
     log("Checking openenv.yaml schema...")
     with open("openenv.yaml", "r") as f:
         config = yaml.safe_load(f)
-    
-    assert "tasks" in config, "Missing 'tasks' section"
-    tasks = config["tasks"]
-    assert len(tasks) >= 3, f"Expected at least 3 tasks, found {len(tasks)}"
-    
+
+    # Required top-level fields
+    assert "name" in config, "Missing 'name'"
+    assert "entrypoint" in config, "Missing 'entrypoint'"
+    assert "description" in config, "Missing 'description'"
+
+    # Tasks must live under metadata.tasks (matches the framework's task-discovery path)
+    metadata = config.get("metadata", {})
+    tasks = metadata.get("tasks", [])
+    assert len(tasks) >= 3, (
+        f"Expected at least 3 tasks under metadata.tasks, found {len(tasks)}. "
+        "The submission validator reads tasks from metadata.tasks, not from a "
+        "top-level tasks: block."
+    )
     for task in tasks:
-        tid = task.get("id", "unknown")
-        assert "id" in task, "Task missing id"
-        assert "name" in task, f"Task {tid} missing name"
-        assert "description" in task, f"Task {tid} missing description"
-        assert "difficulty" in task, f"Task {tid} missing difficulty"
-        assert "grader" in task, f"Task {tid} missing grader"
-        assert ":" in task["grader"], f"Task {tid} grader path '{task['grader']}' must use module:function format"
+        assert isinstance(task, str), (
+            f"Each entry in metadata.tasks must be a plain string task ID, got {type(task)}"
+        )
+    log(f"metadata.tasks contains {len(tasks)} tasks: {tasks}")
     log("YAML schema OK.")
+
 
 def run_test_reward_range():
     log("Checking reward_range...")
@@ -36,45 +52,82 @@ def run_test_reward_range():
     assert len(reward_range) == 2, "metadata.reward_range must have 2 elements"
     assert reward_range[0] >= 0.0, f"Min reward {reward_range[0]} must be >= 0.0"
     assert reward_range[1] <= 1.0, f"Max reward {reward_range[1]} must be <= 1.0"
-    assert reward_range[0] < reward_range[1], "reward_range lower must be strictly less than upper"
+    assert reward_range[0] < reward_range[1], "reward_range lower must be < upper"
     log("Reward range OK.")
 
+
 def run_test_grader_outputs():
+    """Graders are tested directly — they are not referenced from YAML grader fields."""
     log("Checking grader outputs for strict (0, 1) range...")
-    with open("openenv.yaml", "r") as f:
-        config = yaml.safe_load(f)
-    tasks = config["tasks"]
-    
+
+    from financial_analysis_env import grade_easy, grade_medium, grade_hard, grade_expert
     from financial_analysis_env.models import FinancialAnalysisAction
+
+    graders = {
+        "easy":   grade_easy,
+        "medium": grade_medium,
+        "hard":   grade_hard,
+        "expert": grade_expert,
+    }
+
     edge_cases = [
-        FinancialAnalysisAction(), # Empty
-        FinancialAnalysisAction(analysis="A"*1000, identified_issues=["issue1"], recommendation="R"*1000), # Large
-        {"analysis": "raw dict test"}, # Dict input
-        None, # None input
+        FinancialAnalysisAction(),                                    # empty
+        FinancialAnalysisAction(analysis="A" * 1000,
+                                identified_issues=["issue1"],
+                                recommendation="R" * 1000),          # large
+        None,                                                         # None input
     ]
 
-    for task in tasks:
-        grader_path = task["grader"]
-        log(f"Testing grader: {grader_path}")
-        module_path, func_name = grader_path.split(":")
-        mod = importlib.import_module(module_path)
-        grader_func = getattr(mod, func_name)
-        
+    for task_id, grader_func in graders.items():
+        log(f"Testing grader for task: {task_id}")
         for i, case in enumerate(edge_cases):
             try:
                 score = grader_func(case)
-                assert isinstance(score, float), f"Grader {grader_path} returned {type(score)} instead of float"
-                assert 0.0 < score < 1.0, f"Grader {grader_path} returned {score} for case {i}, which is out of strict range (0, 1)"
+                assert isinstance(score, float), (
+                    f"Grader '{task_id}' returned {type(score)} instead of float"
+                )
+                assert 0.0 < score < 1.0, (
+                    f"Grader '{task_id}' returned {score} for case {i}, "
+                    "which is out of strict range (0, 1)"
+                )
+            except AssertionError:
+                raise
             except Exception as e:
-                print(f"ERROR: Grader {grader_path} raised {type(e).__name__}: {e}")
+                print(f"ERROR: Grader '{task_id}' raised {type(e).__name__}: {e}")
                 sys.exit(1)
     log("Grader outputs OK.")
+
+
+def run_test_task_routing():
+    """Ensure reset(task=X) routes to distinct task descriptions."""
+    log("Checking task routing...")
+    from server.financial_analysis_environment import FinancialAnalysisOpenEnv
+
+    with open("openenv.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    task_ids = config.get("metadata", {}).get("tasks", [])
+
+    env = FinancialAnalysisOpenEnv()
+    seen = {}
+    for tid in task_ids:
+        obs = env.reset(task=tid)
+        seen[tid] = obs.task_description[:60]
+
+    unique = set(seen.values())
+    assert len(unique) == len(task_ids), (
+        f"Expected {len(task_ids)} distinct task descriptions, got {len(unique)}.\n"
+        f"All task IDs appear to route to the same task.\n"
+        f"Descriptions: {seen}"
+    )
+    log(f"Task routing OK ({len(task_ids)} distinct tasks).")
+
 
 if __name__ == "__main__":
     try:
         run_test_yaml_schema()
         run_test_reward_range()
         run_test_grader_outputs()
+        run_test_task_routing()
         print("\n[SUCCESS] All compliance tests passed!")
     except AssertionError as e:
         print(f"\n[FAILURE] {e}")

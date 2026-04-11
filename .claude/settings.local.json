@@ -7,7 +7,9 @@
       "Bash(venv/Scripts/pip install:*)",
       "Bash(venv/Scripts/python -m pytest tests/test_graders.py -v)",
       "Bash(venv/Scripts/pip.exe install:*)",
-      "Bash(\"C:/Users/Admin/Documents/financial-analysis-env/venv/Scripts/python.exe\" -m pytest tests/test_graders.py -v)"
+      "Bash(\"C:/Users/Admin/Documents/financial-analysis-env/venv/Scripts/python.exe\" -m pytest tests/test_graders.py -v)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
