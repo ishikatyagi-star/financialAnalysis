@@ -71,7 +71,7 @@ class FinancialAnalysisOpenEnv:
             financial_data=task_data["financial_data"],
             difficulty=task_data["difficulty"],
             done=False,
-            reward=None,
+            reward=_clamp(0.0),
         )
 
     async def reset_async(
@@ -123,6 +123,16 @@ class FinancialAnalysisOpenEnv:
             episode_id=self._env._episode_id,
             step_count=self._step_count,
         )
+
+    @property
+    def graders(self) -> dict:
+        """Expose graders for task discovery by the framework."""
+        return {
+            "easy": grade_easy,
+            "medium": grade_medium,
+            "hard": grade_hard,
+            "expert": grade_expert,
+        }
 
     def close(self) -> None:
         self._env._current_task = None

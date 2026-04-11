@@ -479,6 +479,16 @@ class FinancialAnalysisEnvironment:
     # Map of task IDs (matching openenv.yaml) → TASKS indices
     _TASK_ID_MAP = {"easy": 0, "medium": 1, "hard": 2, "expert": 3}
 
+    @property
+    def graders(self) -> dict:
+        """Expose graders for task-level scoring discovery."""
+        return {
+            "easy": grade_easy,
+            "medium": grade_medium,
+            "hard": grade_hard,
+            "expert": grade_expert,
+        }
+
     def reset(self, seed=None, task_id=None, episode_id=None, options=None) -> FinancialAnalysisObservation:
         if seed is not None:
             random.seed(seed)
@@ -506,7 +516,7 @@ class FinancialAnalysisEnvironment:
             financial_data=self._current_task["financial_data"],
             difficulty=self._current_task["difficulty"],
             done=False,
-            reward=None,   # no action taken yet; reward is only set after step()
+            reward=_clamp(0.0),   # strictly (0, 1) as required by validator
         )
 
     def step(self, action: FinancialAnalysisAction, task_id=None) -> FinancialAnalysisObservation:

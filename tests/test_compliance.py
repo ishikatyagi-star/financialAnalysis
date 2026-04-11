@@ -120,6 +120,24 @@ def run_test_task_routing():
         f"Descriptions: {seen}"
     )
     log(f"Task routing OK ({len(task_ids)} distinct tasks).")
+    
+    # Check reward in reset logic (MUST be float in (0, 1))
+    log("Checking reward value in reset() response...")
+    for tid in task_ids:
+        obs = env.reset(task=tid)
+        assert isinstance(obs.reward, float), f"reset({tid}).reward must be a float, got {type(obs.reward)}"
+        assert 0.0 < obs.reward < 1.0, f"reset({tid}).reward {obs.reward} out of range (0, 1)"
+    log("Reset reward OK.")
+
+    # Check graders discovery
+    log("Checking graders attribute discovery...")
+    assert hasattr(env, "graders"), "Environment missing 'graders' property"
+    graders = env.graders
+    assert isinstance(graders, dict), f"env.graders must be a dict, got {type(graders)}"
+    for tid in task_ids:
+        assert tid in graders, f"Task '{tid}' missing from env.graders"
+        assert callable(graders[tid]), f"Grader for '{tid}' must be callable"
+    log(f"Graders discovery OK for {len(graders)} tasks.")
 
 
 if __name__ == "__main__":
