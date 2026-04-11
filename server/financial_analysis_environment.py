@@ -8,7 +8,7 @@ from the class metadata.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 import random
 from uuid import uuid4
 from typing import Any
@@ -27,10 +27,9 @@ from financial_analysis_env.environment import (
 )
 
 
-@dataclass
-class EnvironmentState:
-    episode_id: str
-    step_count: int
+class EnvironmentState(BaseModel):
+    episode_id: str = ""
+    step_count: int = 0
 
 class FinancialAnalysisOpenEnv:
     """Native environment class for the OpenEnv framework.
