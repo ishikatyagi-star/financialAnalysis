@@ -1,7 +1,6 @@
 """OpenEnv-compatible wrapper for FinancialAnalysisEnvironment.
 
-This class follows the exact same pattern as the successful GeniusPlums
-submission (LeadQualOpenEnv). The entrypoint in openenv.yaml points here,
+The entrypoint in openenv.yaml points here,
 so the OpenEnv framework can natively wrap this class and discover tasks
 from the class metadata.
 """

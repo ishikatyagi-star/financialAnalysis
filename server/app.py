@@ -1,6 +1,5 @@
 """FastAPI application for the Financial Analysis OpenEnv environment.
 
-Follows the exact same pattern as the successful GeniusPlums submission:
 - Uses create_app() with a lambda factory (not the class directly)
 - Positional args match the library's expected signature
 - Custom endpoints are mounted on top (not shadowed)
