@@ -8,7 +8,7 @@ description: >
   programmatic grader with deterministic success criteria and
   partial progress signals.
 
-entrypoint: financial_analysis_env.server.app:app
+entrypoint: server.app:app
 
 interfaces:
   - type: http

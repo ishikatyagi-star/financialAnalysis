@@ -332,10 +332,26 @@ TASKS = [
 # The validator / openenv.yaml grader: paths point here.
 # Signature: grader(action) → float  (single arg, single float return)
 # These look up expected data internally from TASKS — no external knowledge needed.
+# NOTE: The validator may pass a dict, a Pydantic model, or even call with no args.
+# We must handle all cases gracefully — never raise.
 
-def grade_easy(action: FinancialAnalysisAction) -> float:
+def _coerce_action(action=None) -> FinancialAnalysisAction:
+    """Convert any input into a FinancialAnalysisAction, never raising."""
+    if isinstance(action, FinancialAnalysisAction):
+        return action
+    if isinstance(action, dict):
+        try:
+            return FinancialAnalysisAction(**action)
+        except Exception:
+            return FinancialAnalysisAction()
+    # Fallback: return a blank action
+    return FinancialAnalysisAction()
+
+
+def grade_easy(action=None) -> float:
     """Public grader for the easy task — returns a float in (0, 1)."""
     try:
+        action = _coerce_action(action)
         expected = next(t["expected"] for t in TASKS if t["difficulty"] == "easy")
         score, _ = _grade_easy(action, expected)
         return score
@@ -343,9 +359,10 @@ def grade_easy(action: FinancialAnalysisAction) -> float:
         return _clamp(0.02)
 
 
-def grade_medium(action: FinancialAnalysisAction) -> float:
+def grade_medium(action=None) -> float:
     """Public grader for the medium task — returns a float in (0, 1)."""
     try:
+        action = _coerce_action(action)
         expected = next(t["expected"] for t in TASKS if t["difficulty"] == "medium")
         score, _ = _grade_medium(action, expected)
         return score
@@ -353,9 +370,10 @@ def grade_medium(action: FinancialAnalysisAction) -> float:
         return _clamp(0.02)
 
 
-def grade_hard(action: FinancialAnalysisAction) -> float:
+def grade_hard(action=None) -> float:
     """Public grader for the hard task — returns a float in (0, 1)."""
     try:
+        action = _coerce_action(action)
         expected = next(t["expected"] for t in TASKS if t["difficulty"] == "hard")
         score, _ = _grade_hard(action, expected)
         return score

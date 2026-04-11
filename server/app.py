@@ -1,8 +1,10 @@
 import uvicorn
+import yaml
+from pathlib import Path
 from uuid import uuid4
 from openenv.core.env_server import create_fastapi_app
 from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
-from financial_analysis_env.environment import FinancialAnalysisEnvironment, TASKS
+from financial_analysis_env.environment import FinancialAnalysisEnvironment, TASKS, grade_easy, grade_medium, grade_hard
 
 app = create_fastapi_app(
     FinancialAnalysisEnvironment,
@@ -10,29 +12,53 @@ app = create_fastapi_app(
     observation_cls=FinancialAnalysisObservation
 )
 
+# ── Load openenv.yaml for metadata ────────────────────────────────────────────
+_YAML_PATH = Path(__file__).resolve().parent.parent / "openenv.yaml"
+try:
+    with open(_YAML_PATH) as f:
+        _OPENENV_META = yaml.safe_load(f)
+except Exception:
+    _OPENENV_META = {"name": "financial-analysis-env", "description": "RL environment for financial analysis tasks"}
+
+# Grader map matching openenv.yaml task ids → actual callable graders
+_GRADER_MAP = {
+    "easy": {"module": "financial_analysis_env.environment.grade_easy", "fn": grade_easy},
+    "medium": {"module": "financial_analysis_env.environment.grade_medium", "fn": grade_medium},
+    "hard": {"module": "financial_analysis_env.environment.grade_hard", "fn": grade_hard},
+}
+
 @app.get("/")
 def root():
     return {"message": "OpenEnv server running"}
 
-# ── This is what the validator is almost certainly looking for ────────────────
+@app.get("/metadata")
+def metadata():
+    return {
+        "name": _OPENENV_META.get("name", "financial-analysis-env"),
+        "description": _OPENENV_META.get("description", "RL environment for financial analysis tasks"),
+    }
+
 @app.get("/tasks")
 def list_tasks():
     return {
         "tasks": [
             {
                 "id": t["difficulty"],
+                "name": t.get("task_description", "")[:60],
                 "difficulty": t["difficulty"],
                 "description": t["task_description"],
-                "has_grader": True,  # explicit flag
+                "has_grader": True,
+                "grader": _GRADER_MAP[t["difficulty"]]["module"],
             }
             for t in TASKS
         ],
-        "total": len(TASKS)
+        "total": len(TASKS),
+        "tasks_with_graders": len(TASKS),
     }
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "tasks_with_graders": len(TASKS)}
+    return {"status": "healthy", "tasks_with_graders": len(TASKS)}
 
 @app.get("/run_test")
 def run_test():
