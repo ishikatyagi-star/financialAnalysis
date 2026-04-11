@@ -1,5 +1,6 @@
 name: financial-analysis-env
 version: 0.1.0
+spec_version: 1
 entrypoint: server.financial_analysis_environment:FinancialAnalysisOpenEnv
 description: >-
   RL environment for training agents to analyze financial data.
@@ -13,15 +14,20 @@ tags:
   - openenv
   - financial-analysis
   - agent-benchmark
+
+tasks:
+  - id: easy
+    grader: financial_analysis_env.environment:grade_easy
+  - id: medium
+    grader: financial_analysis_env.environment:grade_medium
+  - id: hard
+    grader: financial_analysis_env.environment:grade_hard
+
 metadata:
   domain: financial_analysis
   max_turns: 1
   reward_range: [0.0, 1.0]
   episode_length: 1
-  tasks:
-    - easy
-    - medium
-    - hard
   task_progression:
     easy: quarterly revenue analysis with straightforward data
     medium: expense anomaly detection with monthly data patterns
