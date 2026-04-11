@@ -37,10 +37,8 @@ dev = [
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
-# or: python -m financial_analysis_env.server.app
-server = "financial_analysis_env.server.app:main"
+server = "server.app:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["financial_analysis_env", "financial_analysis_env.server"]
-package-dir = { "financial_analysis_env.server" = "server" }
+packages = ["financial_analysis_env", "server"]

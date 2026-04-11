@@ -1,38 +1,38 @@
-spec_version: 1
-
 name: financial-analysis-env
-description: >
+version: 0.1.0
+entrypoint: server.financial_analysis_environment:FinancialAnalysisOpenEnv
+description: >-
   RL environment for training agents to analyze financial data.
   Tasks range from quarterly trend analysis (easy) to full risk
   assessments for Series B fundraising (hard). Each task has a
   programmatic grader with deterministic success criteria and
   partial progress signals.
-
-entrypoint: server.app:app
-
-interfaces:
-  - type: http
-    port: 7860
-
-models:
-  action: financial_analysis_env.models.FinancialAnalysisAction
-  observation: financial_analysis_env.models.FinancialAnalysisObservation
-
-tasks:
-  - id: easy
-    name: Quarterly Revenue Analysis
-    description: Identify best quarter, calculate growth %, recommend action
-    difficulty: easy
-    grader: financial_analysis_env.environment.grade_easy
-
-  - id: medium
-    name: Expense Anomaly Detection
-    description: Detect anomalous month in opex data, quantify, recommend next step
-    difficulty: medium
-    grader: financial_analysis_env.environment.grade_medium
-
-  - id: hard
-    name: Series B Risk Assessment
-    description: Identify top 3 risks with evidence and targeted recommendations
-    difficulty: hard
-    grader: financial_analysis_env.environment.grade_hard
+author: ishikatyagi-star
+license: MIT
+tags:
+  - openenv
+  - financial-analysis
+  - agent-benchmark
+metadata:
+  domain: financial_analysis
+  max_turns: 1
+  reward_range: [0.0, 1.0]
+  episode_length: 1
+  tasks:
+    - easy
+    - medium
+    - hard
+  task_progression:
+    easy: quarterly revenue analysis with straightforward data
+    medium: expense anomaly detection with monthly data patterns
+    hard: comprehensive Series B risk assessment with multi-dimensional data
+  observation_fields:
+    - task_description
+    - financial_data
+    - difficulty
+    - done
+    - reward
+  action_fields:
+    - analysis
+    - identified_issues
+    - recommendation

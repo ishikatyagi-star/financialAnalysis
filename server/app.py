@@ -1,44 +1,48 @@
+"""FastAPI application for the Financial Analysis OpenEnv environment.
+
+Follows the exact same pattern as the successful GeniusPlums submission:
+- Uses create_app() with a lambda factory (not the class directly)
+- Positional args match the library's expected signature
+- Custom endpoints are mounted on top (not shadowed)
+"""
+
+from __future__ import annotations
+
+import os
 import uvicorn
 import yaml
 from pathlib import Path
-from uuid import uuid4
 from typing import Any, Dict
 from pydantic import BaseModel
-from openenv.core.env_server import create_app
-from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
-from financial_analysis_env.environment import (
-    FinancialAnalysisEnvironment, TASKS,
-    grade_easy, grade_medium, grade_hard,
+
+from openenv.core.env_server.http_server import create_app
+
+from .financial_analysis_environment import FinancialAnalysisOpenEnv
+from financial_analysis_env.models import (
+    FinancialAnalysisAction,
+    FinancialAnalysisObservation,
 )
+from financial_analysis_env.environment import (
+    TASKS,
+    grade_easy,
+    grade_medium,
+    grade_hard,
+)
+
+
+# ── Create the FastAPI app using the same pattern as the reference ────────────
+MAX_CONCURRENT = int(os.getenv("FINANCIAL_ENV_MAX_CONCURRENT", "4"))
 
 app = create_app(
-    FinancialAnalysisEnvironment,
-    action_cls=FinancialAnalysisAction,
-    observation_cls=FinancialAnalysisObservation,
+    lambda: FinancialAnalysisOpenEnv(),
+    FinancialAnalysisAction,
+    FinancialAnalysisObservation,
     env_name="financial-analysis-env",
+    max_concurrent_envs=MAX_CONCURRENT,
 )
 
-# Remove the default routes we are overriding so our custom
-# /tasks, /metadata, /health, / endpoints take precedence.
-routes_to_keep = []
-for route in app.router.routes:
-    if hasattr(route, "path") and route.path in ["/", "/tasks", "/metadata", "/health"]:
-        continue
-    routes_to_keep.append(route)
-app.router.routes = routes_to_keep
 
-# ── Load openenv.yaml for metadata ────────────────────────────────────────────
-_YAML_PATH = Path(__file__).resolve().parent.parent / "openenv.yaml"
-try:
-    with open(_YAML_PATH) as f:
-        _OPENENV_META = yaml.safe_load(f)
-except Exception:
-    _OPENENV_META = {
-        "name": "financial-analysis-env",
-        "description": "RL environment for financial analysis tasks",
-    }
-
-# Grader map: task id → bare-float grader callable (matches openenv.yaml paths)
+# ── Grader map ────────────────────────────────────────────────────────────────
 _GRADERS: Dict[str, Any] = {
     "easy":   grade_easy,
     "medium": grade_medium,
@@ -46,47 +50,7 @@ _GRADERS: Dict[str, Any] = {
 }
 
 
-@app.get("/")
-def root():
-    return {"message": "Financial Analysis OpenEnv server running"}
-
-
-@app.get("/metadata")
-def metadata():
-    return {
-        "name":        _OPENENV_META.get("name", "financial-analysis-env"),
-        "description": _OPENENV_META.get("description", "RL environment for financial analysis tasks"),
-    }
-
-
-@app.get("/tasks")
-def list_tasks():
-    """All 3 tasks with grader info — IDs match openenv.yaml."""
-    return {
-        "tasks": [
-            {
-                "id":               t["difficulty"],
-                "difficulty":       t["difficulty"],
-                "description":      t["task_description"],
-                "has_grader":       True,
-                "grader":           f"financial_analysis_env.environment.grade_{t['difficulty']}",
-                "grader_endpoint":  f"/grade/{t['difficulty']}",
-            }
-            for t in TASKS
-        ],
-        "total":               len(TASKS),
-        "tasks_with_graders":  len(TASKS),
-    }
-
-
-@app.get("/health")
-def health():
-    return {"status": "healthy", "tasks_with_graders": len(TASKS)}
-
-
-# ── /grade/{task_id} — direct, stateless, deterministic grading ───────────────
-# Bypasses the stateless reset/step routing problem entirely.
-# The checker can POST an action here with the task_id and get a score.
+# ── /grade/{task_id} — direct, stateless grading ─────────────────────────────
 
 class GradeRequest(BaseModel):
     action: Dict[str, Any]
@@ -99,10 +63,10 @@ def grade_task(task_id: str, body: GradeRequest):
         return {"error": f"Unknown task_id '{task_id}'. Use: easy, medium, hard"}
     try:
         action = FinancialAnalysisAction.model_validate(body.action)
-        score  = _GRADERS[task_id](action)
+        score = _GRADERS[task_id](action)
         return {
-            "task_id":  task_id,
-            "score":    score,
+            "task_id": task_id,
+            "score": score,
             "in_range": 0.0 < score < 1.0,
         }
     except Exception as e:
@@ -111,12 +75,12 @@ def grade_task(task_id: str, body: GradeRequest):
 
 @app.post("/grade")
 def grade_all(body: GradeRequest):
-    """Grade an action against all 3 tasks — useful for smoke-testing."""
+    """Grade an action against all 3 tasks."""
     results = {}
     for task_id, grader in _GRADERS.items():
         try:
             action = FinancialAnalysisAction.model_validate(body.action)
-            score  = grader(action)
+            score = grader(action)
             results[task_id] = {"score": score, "in_range": 0.0 < score < 1.0}
         except Exception as e:
             results[task_id] = {"error": str(e)}
@@ -134,14 +98,14 @@ def run_test():
         )
         results = []
         for i, task in enumerate(TASKS):
-            tid   = task["difficulty"]
+            tid = task["difficulty"]
             score = _GRADERS[tid](test_action)
             results.append({
-                "task_id":       tid,
-                "task_index":    i,
-                "difficulty":    tid,
-                "reward":        score,
-                "done":          True,
+                "task_id": tid,
+                "task_index": i,
+                "difficulty": tid,
+                "reward": score,
+                "done": True,
                 "reward_in_range": 0.0 < score < 1.0,
             })
         return {"status": "success", "results": results}

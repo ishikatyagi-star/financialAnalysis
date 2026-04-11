@@ -6,6 +6,6 @@
 
 """Financial Analysis Env environment server components."""
 
-from financial_analysis_env.environment import FinancialAnalysisEnvironment
+from .financial_analysis_environment import FinancialAnalysisOpenEnv
 
-__all__ = ["FinancialAnalysisEnvironment"]
+__all__ = ["FinancialAnalysisOpenEnv"]
