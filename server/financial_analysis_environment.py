@@ -101,6 +101,11 @@ class FinancialAnalysisOpenEnv:
             difficulty=task_data["difficulty"],
             done=True,
             reward=reward,
+            info={
+                "task_score": reward,
+                "task_score_components": breakdown.get("partial_scores", {}),
+                **breakdown
+            }
         )
 
     async def step_async(

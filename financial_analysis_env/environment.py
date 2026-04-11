@@ -21,9 +21,10 @@ except ImportError:
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def _clamp(reward: float) -> float:
-    """Strictly (0, 1) — validator requires this."""
-    return round(max(0.02, min(reward, 0.97)), 2)
+def _clamp(reward: float, epsilon: float = 0.01) -> float:
+    """Strictly (0, 1) — validator requires this. Using epsilon bounds."""
+    val = max(epsilon, min(reward, 1.0 - epsilon))
+    return round(float(val), 4)
 
 
 def _whole_number(n: str, text: str) -> bool:
