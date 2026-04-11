@@ -4,17 +4,18 @@ from pathlib import Path
 from uuid import uuid4
 from typing import Any, Dict
 from pydantic import BaseModel
-from openenv.core.env_server import create_fastapi_app
+from openenv.core.env_server import create_app
 from financial_analysis_env.models import FinancialAnalysisAction, FinancialAnalysisObservation
 from financial_analysis_env.environment import (
     FinancialAnalysisEnvironment, TASKS,
     grade_easy, grade_medium, grade_hard,
 )
 
-app = create_fastapi_app(
+app = create_app(
     FinancialAnalysisEnvironment,
     action_cls=FinancialAnalysisAction,
-    observation_cls=FinancialAnalysisObservation
+    observation_cls=FinancialAnalysisObservation,
+    env_name="financial-analysis-env",
 )
 
 # ── Load openenv.yaml for metadata ────────────────────────────────────────────

@@ -17,11 +17,14 @@ COPY . .
 # Install the project itself so package-dir mappings take effect
 RUN uv pip install --system -e .
 
-# Install yaml for metadata loading
-RUN pip install pyyaml
+# Install yaml and gradio for metadata loading and web UI
+RUN pip install pyyaml gradio
 
 # Set PYTHONPATH so imports resolve correctly
 ENV PYTHONPATH=/app
+
+# Enable the Gradio web interface (required for HuggingFace Spaces qualification)
+ENV ENABLE_WEB_INTERFACE=true
 
 # Start the server — must match entrypoint in openenv.yaml
 CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
