@@ -109,6 +109,7 @@ class FinancialAnalysisOpenEnv:
     ) -> FinancialAnalysisObservation:
         return self.step(action, **kwargs)
 
+    @property
     def state(self) -> EnvironmentState:
         return EnvironmentState(
             episode_id=self._env._episode_id,
