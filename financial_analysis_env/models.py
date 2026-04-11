@@ -29,3 +29,4 @@ class FinancialAnalysisObservation(BaseModel):
     done: bool = Field(default=False, description="Whether the episode is finished")
     # None on reset (no action taken yet); float in (0,1) after step()
     reward: Optional[float] = Field(default=None, description="The reward for the last action")
+    info: dict = Field(default_factory=dict, description="Additional breakdown information")

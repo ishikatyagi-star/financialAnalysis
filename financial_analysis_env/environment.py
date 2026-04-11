@@ -454,6 +454,7 @@ class FinancialAnalysisEnvironment:
             difficulty=self._current_task["difficulty"],
             done=True,
             reward=reward,
+            info=breakdown,
         )
 
     async def reset_async(self, seed=None, task_id=None, episode_id=None, options=None):
