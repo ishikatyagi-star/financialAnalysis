@@ -9,6 +9,15 @@ try:
 except ImportError:
     from models import FinancialAnalysisAction, FinancialAnalysisObservation
 
+try:
+    from openenv.core.env_server.types import State
+except ImportError:
+    # Fallback: define a minimal State-compatible object if openenv isn't installed
+    from pydantic import BaseModel as _BaseModel
+    class State(_BaseModel):
+        episode_id: str = ""
+        step_count: int = 0
+
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -457,5 +466,5 @@ class FinancialAnalysisEnvironment:
         self._current_task = None
 
     @property
-    def state(self) -> dict:
-        return {"episode_id": self._episode_id, "step_count": self._step_count}
+    def state(self) -> State:
+        return State(episode_id=self._episode_id, step_count=self._step_count)
