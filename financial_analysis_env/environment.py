@@ -422,7 +422,7 @@ class FinancialAnalysisEnvironment:
             financial_data=self._current_task["financial_data"],
             difficulty=self._current_task["difficulty"],
             done=False,
-            reward=0.0,
+            reward=None,   # no action taken yet; reward is only set after step()
         )
 
     def step(self, action: FinancialAnalysisAction, task_id=None) -> FinancialAnalysisObservation:

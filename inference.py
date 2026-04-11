@@ -11,11 +11,15 @@ from financial_analysis_env.models import FinancialAnalysisAction
 
 # ── CONFIG ─────────────────────────────────────────
 
-IMAGE_NAME = os.getenv("IMAGE_NAME")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+# Spec requires OPENAI_API_KEY; fall back to HF_TOKEN / API_KEY for compat
+API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
+if not API_KEY:
+    raise ValueError("OPENAI_API_KEY environment variable is required")
+
+# Default to OpenAI; override API_BASE_URL for other backends (e.g. HF router)
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://api.openai.com/v1"
+MODEL_NAME   = os.getenv("MODEL_NAME") or "gpt-4o-mini"
 
 TASK_NAME = "financial_analysis"
 BENCHMARK = "financial_analysis_env"

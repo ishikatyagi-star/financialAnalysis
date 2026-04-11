@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import Optional
 
 class FinancialAnalysisAction(BaseModel):
     model_config = {"extra": "allow"}
@@ -15,4 +16,5 @@ class FinancialAnalysisObservation(BaseModel):
     financial_data: dict = Field(default_factory=dict, description="The financial data to analyze")
     difficulty: str = Field(default="easy", description="easy, medium, or hard")
     done: bool = Field(default=False, description="Whether the episode is finished")
-    reward: float = Field(default=0.0, description="The reward for the last action")
+    # None on reset (no action taken yet); float in (0,1) after step()
+    reward: Optional[float] = Field(default=None, description="The reward for the last action")
