@@ -49,14 +49,17 @@ class FinancialAnalysisOpenEnv:
         self,
         seed: int | None = None,
         task: str = "easy",
+        task_id: str | None = None,
         **kwargs: object,
     ) -> FinancialAnalysisObservation:
         if seed is not None:
             random.seed(seed)
 
-        # Select task by id
+        # The framework calls reset(task_id=<yaml id>) matching the YAML `id:` field.
+        # Prefer task_id when provided; fall back to the `task` kwarg.
+        effective_task = task_id if task_id is not None else task
         task_map = {"easy": 0, "medium": 1, "hard": 2, "expert": 3}
-        task_idx = task_map.get(task, 0)
+        task_idx = task_map.get(effective_task, 0)
         task_data = TASKS[task_idx]
         self._env._current_task = task_data
         self._env._episode_id = str(uuid4())
@@ -75,9 +78,10 @@ class FinancialAnalysisOpenEnv:
         self,
         seed: int | None = None,
         task: str = "easy",
+        task_id: str | None = None,
         **kwargs: object,
     ) -> FinancialAnalysisObservation:
-        return self.reset(seed, task, **kwargs)
+        return self.reset(seed, task, task_id=task_id, **kwargs)
 
     def step(
         self, action: FinancialAnalysisAction, **kwargs: object

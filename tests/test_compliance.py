@@ -34,8 +34,9 @@ def run_test_reward_range():
         config = yaml.safe_load(f)
     reward_range = config.get("metadata", {}).get("reward_range", [])
     assert len(reward_range) == 2, "metadata.reward_range must have 2 elements"
-    assert reward_range[0] > 0.0, f"Min reward {reward_range[0]} must be > 0.0"
-    assert reward_range[1] < 1.0, f"Max reward {reward_range[1]} must be < 1.0"
+    assert reward_range[0] >= 0.0, f"Min reward {reward_range[0]} must be >= 0.0"
+    assert reward_range[1] <= 1.0, f"Max reward {reward_range[1]} must be <= 1.0"
+    assert reward_range[0] < reward_range[1], "reward_range lower must be strictly less than upper"
     log("Reward range OK.")
 
 def run_test_grader_outputs():

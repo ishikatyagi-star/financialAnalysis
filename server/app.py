@@ -55,6 +55,32 @@ _GRADERS: Dict[str, Any] = {
 }
 
 
+# ── Startup grader self-check ─────────────────────────────────────────────────
+def _verify_graders_at_startup() -> None:
+    """Fail fast at import time if any grader is broken or returns a score outside (0, 1)."""
+    probe = FinancialAnalysisAction(
+        analysis="probe analysis text",
+        identified_issues=["probe issue"],
+        recommendation="probe recommendation",
+    )
+    broken = []
+    for _tid, grader_fn in _GRADERS.items():
+        try:
+            score = grader_fn(probe)
+            if not isinstance(score, float) or not (0.0 < score < 1.0):
+                broken.append(f"{_tid}: returned {score!r}")
+        except Exception as exc:
+            broken.append(f"{_tid}: raised {exc}")
+    if broken:
+        raise RuntimeError(
+            "Grader self-check FAILED — fix before deploying:\n"
+            + "\n".join(f"  • {b}" for b in broken)
+        )
+
+
+_verify_graders_at_startup()
+
+
 # ── /grade/{task_id} — direct, stateless grading ─────────────────────────────
 
 class GradeRequest(BaseModel):

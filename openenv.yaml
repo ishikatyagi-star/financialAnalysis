@@ -20,27 +20,27 @@ tasks:
     name: "Revenue Trend Analysis"
     description: "Identify the top-performing quarter and calculate percentage growth from Q1 to Q2."
     difficulty: "easy"
-    grader: financial_analysis_env.environment:grade_easy
+    grader: financial_analysis_env:grade_easy
   - id: medium
     name: "Expense Anomaly Detection"
     description: "Detect a significant spike in monthly OPEX and recommend audit steps."
     difficulty: "medium"
-    grader: financial_analysis_env.environment:grade_medium
+    grader: financial_analysis_env:grade_medium
   - id: hard
     name: "Series B Risk Assessment"
     description: "Perform a multi-dimensional analysis of CAC, margins, and OPEX growth."
     difficulty: "hard"
-    grader: financial_analysis_env.environment:grade_hard
+    grader: financial_analysis_env:grade_hard
   - id: expert
     name: "Cash Runway & Covenant Audit"
     description: "Calculate runway and evaluate debt covenant risks based on starting cash and burn rate."
     difficulty: "expert"
-    grader: financial_analysis_env.environment:grade_expert
+    grader: financial_analysis_env:grade_expert
 
 metadata:
   domain: financial_analysis
   max_turns: 1
-  reward_range: [0.01, 0.99]
+  reward_range: [0.0, 1.0]
   episode_length: 1
   task_progression:
     easy: quarterly revenue analysis with straightforward data
