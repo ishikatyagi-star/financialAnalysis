@@ -268,6 +268,51 @@ def _grade_hard(action: FinancialAnalysisAction, expected: dict) -> Tuple[float,
         return _clamp(0.02), {"error": "grader_exception", "success": False}
 
 
+def _grade_expert(action: FinancialAnalysisAction, expected: dict) -> Tuple[float, dict]:
+    try:
+        issues = " ".join(i.lower() for i in action.identified_issues)
+        analysis = action.analysis.lower()
+        rec = action.recommendation.lower()
+        
+        # Expert criteria
+        target_runway = "8" # 8 months
+        runway_correct = _whole_number(target_runway, analysis) or ("eight" in analysis and "month" in analysis)
+        burn_mentioned = _whole_number("125", analysis)
+        
+        covenant_correct = ("covenant" in issues) or ("debt" in issues) or ("covenant" in analysis)
+        
+        # recommendation checks
+        rec_mitigate = any(w in rec for w in ["bridge", "raise", "cut", "reduce run", "extend"])
+        
+        runway_score = 0.4 if runway_correct else (0.15 if burn_mentioned else 0.0)
+        covenant_score = 0.35 if covenant_correct else 0.1
+        rec_score = 0.25 if rec_mitigate else 0.05
+        
+        total = runway_score + covenant_score + rec_score
+        
+        # If issues list is empty, penalize
+        if len(action.identified_issues) == 0:
+            total *= 0.5
+            
+        success = runway_correct and covenant_correct and rec_mitigate
+        
+        return _clamp(total), {
+            "criteria": {
+                "runway_calculated": runway_correct,
+                "covenant_identified": covenant_correct,
+                "recommendation_actionable": rec_mitigate
+            },
+            "partial_scores": {
+                "runway": round(runway_score, 2),
+                "covenant": round(covenant_score, 2),
+                "recommendation": round(rec_score, 2)
+            },
+            "success": success
+        }
+    except Exception:
+        return _clamp(0.02), {"error": "grader_exception", "success": False}
+
+
 # ── TASK DEFINITIONS ──────────────────────────────────────────────────────────
 
 TASKS = [
@@ -334,6 +379,24 @@ TASKS = [
         },
         "grader": lambda action, expected: _grade_hard(action, expected),
     },
+    {
+        "difficulty": "expert",
+        "task_description": (
+            "You are an expert financial strategist advising a late-stage startup. "
+            "Calculate the cash runway in months based on the current cash balance and average monthly burn rate. "
+            "Evaluate if the projected cash balance poses a risk to their debt covenants at the end of the year, "
+            "and suggest an immediate strategic action."
+        ),
+        "financial_data": {
+            "company": "ScaleUp Tech", "period": "Current Year Projection", "currency": "USD (thousands)",
+            "cash_position": {"starting_cash": 1000},
+            "burn_rate": {"average_monthly_burn": 125},
+            "debt_covenants": {"minimum_liquidity_required": 250},
+            "notes": "No additional funding rounds are currently closed.",
+        },
+        "expected": {"runway_months": "8"},
+        "grader": lambda action, expected: _grade_expert(action, expected),
+    },
 ]
 
 
@@ -390,6 +453,17 @@ def grade_hard(action=None) -> float:
         return _clamp(0.02)
 
 
+def grade_expert(action=None) -> float:
+    """Public grader for the expert task — returns a float in (0, 1)."""
+    try:
+        action = _coerce_action(action)
+        expected = next(t["expected"] for t in TASKS if t["difficulty"] == "expert")
+        score, _ = _grade_expert(action, expected)
+        return score
+    except Exception:
+        return _clamp(0.02)
+
+
 # ── ENVIRONMENT CLASS ─────────────────────────────────────────────────────────
 
 class FinancialAnalysisEnvironment:
@@ -402,7 +476,7 @@ class FinancialAnalysisEnvironment:
         self._step_count   = 0
 
     # Map of task IDs (matching openenv.yaml) → TASKS indices
-    _TASK_ID_MAP = {"easy": 0, "medium": 1, "hard": 2}
+    _TASK_ID_MAP = {"easy": 0, "medium": 1, "hard": 2, "expert": 3}
 
     def reset(self, seed=None, task_id=None, episode_id=None, options=None) -> FinancialAnalysisObservation:
         if seed is not None:

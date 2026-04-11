@@ -12,6 +12,7 @@ from .environment import (
     grade_easy,
     grade_medium,
     grade_hard,
+    grade_expert,
 )
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "grade_easy",
     "grade_medium",
     "grade_hard",
+    "grade_expert",
 ]

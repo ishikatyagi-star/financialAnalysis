@@ -22,6 +22,8 @@ tasks:
     grader: financial_analysis_env.environment:grade_medium
   - id: hard
     grader: financial_analysis_env.environment:grade_hard
+  - id: expert
+    grader: financial_analysis_env.environment:grade_expert
 
 metadata:
   domain: financial_analysis
@@ -32,6 +34,7 @@ metadata:
     easy: quarterly revenue analysis with straightforward data
     medium: expense anomaly detection with monthly data patterns
     hard: comprehensive Series B risk assessment with multi-dimensional data
+    expert: cash flow runway and debt coverage assessment
   observation_fields:
     - task_description
     - financial_data

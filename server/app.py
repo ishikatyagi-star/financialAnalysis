@@ -26,6 +26,7 @@ from financial_analysis_env.environment import (
     grade_easy,
     grade_medium,
     grade_hard,
+    grade_expert,
 )
 
 
@@ -50,6 +51,7 @@ _GRADERS: Dict[str, Any] = {
     "easy":   grade_easy,
     "medium": grade_medium,
     "hard":   grade_hard,
+    "expert": grade_expert,
 }
 
 

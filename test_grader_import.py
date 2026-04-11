@@ -4,7 +4,6 @@ import yaml
 import sys
 import os
 
-os.chdir(r"c:\Users\Admin\mutantsSubmission")
 sys.path.insert(0, ".")
 
 with open("openenv.yaml") as f:
@@ -43,7 +42,7 @@ for task in tasks:
 # Also test calling the graders
 print("\n\n=== Testing grader calls ===")
 from financial_analysis_env.models import FinancialAnalysisAction
-from financial_analysis_env.environment import grade_easy, grade_medium, grade_hard
+from financial_analysis_env.environment import grade_easy, grade_medium, grade_hard, grade_expert
 
 action = FinancialAnalysisAction(
     analysis="Q2 is the best quarter with 20.83% growth",
@@ -51,7 +50,7 @@ action = FinancialAnalysisAction(
     recommendation="Continue investing in Q2 summer promotions to replicate success"
 )
 
-for name, func in [("grade_easy", grade_easy), ("grade_medium", grade_medium), ("grade_hard", grade_hard)]:
+for name, func in [("grade_easy", grade_easy), ("grade_medium", grade_medium), ("grade_hard", grade_hard), ("grade_expert", grade_expert)]:
     try:
         result = func(action)
         print(f"{name}(action) = {result} (type={type(result).__name__})")

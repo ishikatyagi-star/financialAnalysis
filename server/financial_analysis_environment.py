@@ -22,6 +22,7 @@ from financial_analysis_env.environment import (
     grade_easy,
     grade_medium,
     grade_hard,
+    grade_expert,
     _clamp,
 )
 
@@ -54,7 +55,7 @@ class FinancialAnalysisOpenEnv:
             random.seed(seed)
 
         # Select task by id
-        task_map = {"easy": 0, "medium": 1, "hard": 2}
+        task_map = {"easy": 0, "medium": 1, "hard": 2, "expert": 3}
         task_idx = task_map.get(task, 0)
         task_data = TASKS[task_idx]
         self._env._current_task = task_data

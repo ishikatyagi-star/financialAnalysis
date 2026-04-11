@@ -82,7 +82,7 @@ def build_demo() -> gr.Blocks:
         with gr.Row():
             with gr.Column(scale=1):
                 task_dropdown = gr.Dropdown(
-                    choices=["easy", "medium", "hard"], 
+                    choices=["easy", "medium", "hard", "expert"], 
                     value="easy", 
                     label="Select Scenario Difficulty"
                 )
