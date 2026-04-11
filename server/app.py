@@ -14,9 +14,11 @@ import yaml
 from pathlib import Path
 from typing import Any, Dict
 from pydantic import BaseModel
+import gradio as gr
 
 from openenv.core.env_server.http_server import create_app
 
+from .demo import build_demo
 from .financial_analysis_environment import FinancialAnalysisOpenEnv
 from financial_analysis_env.models import (
     FinancialAnalysisAction,
@@ -40,6 +42,10 @@ app = create_app(
     env_name="financial-analysis-env",
     max_concurrent_envs=MAX_CONCURRENT,
 )
+
+# ── Mount Gradio demo UI at the root path ────────────────────────────────────
+demo = build_demo()
+app = gr.mount_gradio_app(app, demo, path="/")
 
 
 # ── Grader map ────────────────────────────────────────────────────────────────
