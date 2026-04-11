@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import os
 import uvicorn
-import yaml
-from pathlib import Path
 from typing import Any, Dict
 from pydantic import BaseModel
 import gradio as gr
