@@ -23,8 +23,8 @@ RUN pip install pyyaml gradio
 # Set PYTHONPATH so imports resolve correctly
 ENV PYTHONPATH=/app
 
-# Enable the Gradio web interface (required for HuggingFace Spaces qualification)
-ENV ENABLE_WEB_INTERFACE=true
+# Enable Custom Gradio web interface (and disable generic framework playground)
+ENV ENABLE_WEB_INTERFACE=false
 
 # Start the server — must match entrypoint in openenv.yaml
 CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
