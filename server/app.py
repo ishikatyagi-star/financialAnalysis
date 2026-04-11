@@ -18,6 +18,15 @@ app = create_app(
     env_name="financial-analysis-env",
 )
 
+# Remove the default routes we are overriding so our custom
+# /tasks, /metadata, /health, / endpoints take precedence.
+routes_to_keep = []
+for route in app.routes:
+    if hasattr(route, "path") and route.path in ["/", "/tasks", "/metadata", "/health"]:
+        continue
+    routes_to_keep.append(route)
+app.routes = routes_to_keep
+
 # ── Load openenv.yaml for metadata ────────────────────────────────────────────
 _YAML_PATH = Path(__file__).resolve().parent.parent / "openenv.yaml"
 try:
