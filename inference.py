@@ -1,162 +1,168 @@
-import asyncio
+"""
+Baseline inference script for the Financial Analysis Environment.
+
+Runs all 3 tasks deterministically against an LLM and reports scores.
+
+Usage:
+    OPENAI_API_KEY=sk-... python inference.py
+    OPENAI_API_KEY=sk-... MODEL_NAME=gpt-4o python inference.py
+
+    # HuggingFace router (alternative backend):
+    HF_TOKEN=hf_... API_BASE_URL=https://router.huggingface.co/v1 \\
+        MODEL_NAME=Qwen/Qwen2.5-72B-Instruct python inference.py
+"""
+
 import os
 import json
 import re
-from typing import List, Optional
+from typing import List
 from openai import OpenAI
 
-from financial_analysis_env.environment import FinancialAnalysisEnvironment
+from financial_analysis_env.environment import FinancialAnalysisEnvironment, TASKS
 from financial_analysis_env.models import FinancialAnalysisAction
 
+# ── CONSTANTS ──────────────────────────────────────────────────────────────────
 
-# ── CONFIG ─────────────────────────────────────────
-
-# Spec requires OPENAI_API_KEY; fall back to HF_TOKEN / API_KEY for compat
-API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY")
-
-if not API_KEY:
-    raise ValueError("OPENAI_API_KEY environment variable is required")
-
-# Default to OpenAI; override API_BASE_URL for other backends (e.g. HF router)
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://api.openai.com/v1"
-MODEL_NAME   = os.getenv("MODEL_NAME") or "gpt-4o-mini"
-
-TASK_NAME = "financial_analysis"
-BENCHMARK = "financial_analysis_env"
-
-MAX_STEPS = 3
+TASK_NAME         = "financial_analysis"
+BENCHMARK         = "financial_analysis_env"
 SUCCESS_THRESHOLD = 0.5
 
 
-# ── LOGGING ────────────────────────────────────────
+# ── LOGGING ────────────────────────────────────────────────────────────────────
 
 def log_start(task, env, model):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 
-def log_step(step, action, reward, done, error):
+def log_step(step, action, reward, done, error=None):
     error_val = error if error else "null"
     print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}",
+        f"[STEP] step={step} action={action} reward={reward:.2f} "
+        f"done={str(done).lower()} error={error_val}",
         flush=True,
     )
 
 
-def log_end(success, steps, score, rewards):
+def log_end(success, steps, rewards):
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
         flush=True,
     )
 
 
-# ── LLM CALL ───────────────────────────────────────
+# ── LLM CALL ───────────────────────────────────────────────────────────────────
 
-def get_model_response(client, task_description, financial_data):
-    prompt = f"""
-    You are a financial analyst.
+def get_model_response(client: OpenAI, task_description: str, financial_data: dict) -> dict:
+    prompt = f"""You are a financial analyst.
 
-    Task:
-    {task_description}
+Task:
+{task_description}
 
-    Data:
-    {financial_data}
+Data:
+{json.dumps(financial_data, indent=2)}
 
-    Respond ONLY in JSON:
-    {{
-      "analysis": "...",
-      "identified_issues": ["..."],
-      "recommendation": "..."
-    }}
-    """
+Respond ONLY with a JSON object (no markdown, no explanation):
+{{
+  "identified_issues": ["issue 1", "issue 2", "issue 3"],
+  "analysis": "detailed analysis citing specific numbers...",
+  "recommendation": "specific actionable recommendation..."
+}}"""
 
+    text = ""
     try:
         completion = client.chat.completions.create(
-            model=MODEL_NAME,
+            model=os.getenv("MODEL_NAME", "gpt-4o-mini"),
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=300,
+            temperature=0.0,   # reproducible
+            max_tokens=600,
         )
-
         text = (completion.choices[0].message.content or "").strip()
+        text = re.sub(r"```json|```", "", text).strip()
+        return json.loads(text)
     except Exception:
-        text = ""
-
-    def safe_parse(text):
+        # Try extracting JSON from messy output
         try:
-            return json.loads(text)
-        except Exception:
-            # Try extracting JSON from messy output
-            match = re.search(r'\{.*\}', text, re.DOTALL)
+            match = re.search(r"\{.*\}", text, re.DOTALL)
             if match:
-                try:
-                    return json.loads(match.group())
-                except Exception:
-                    pass
-
+                return json.loads(match.group())
+        except Exception:
+            pass
         return {
-            "analysis": text,
             "identified_issues": [],
-            "recommendation": text,
+            "analysis": text or "no response",
+            "recommendation": "",
         }
 
-    return safe_parse(text)
 
+# ── MAIN ───────────────────────────────────────────────────────────────────────
 
-# ── MAIN ───────────────────────────────────────────
+def main():
+    # Credentials — OPENAI_API_KEY required by spec; HF_TOKEN accepted as fallback
+    api_key = (
+        os.getenv("OPENAI_API_KEY")
+        or os.getenv("HF_TOKEN")
+        or os.getenv("API_KEY")
+    )
+    if not api_key:
+        raise ValueError(
+            "OPENAI_API_KEY environment variable is required.\n"
+            "Set it with: export OPENAI_API_KEY=sk-..."
+        )
 
-async def main():
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    api_base = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+    model    = os.getenv("MODEL_NAME",   "gpt-4o-mini")
 
-    env = FinancialAnalysisEnvironment()
+    client = OpenAI(base_url=api_base, api_key=api_key)
 
-    rewards: List[float] = []
-    steps_taken = 0
-    score = 0.0
-    success = False
+    all_rewards: List[float] = []
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+    log_start(task=TASK_NAME, env=BENCHMARK, model=model)
 
-    try:
-        result = env.reset()
+    # Iterate all 3 tasks deterministically — guaranteed coverage, reproducible
+    for i, task in enumerate(TASKS):
+        step_num = i + 1
+        try:
+            # Pin the task directly so we don't rely on random selection
+            env = FinancialAnalysisEnvironment()
+            env._current_task = task
+            env._episode_id   = f"episode-{task['difficulty']}"
+            env._step_count   = 0
 
-        obs = result
-
-        for step in range(1, MAX_STEPS + 1):
             action_dict = get_model_response(
                 client,
-                obs.task_description,
-                obs.financial_data,
+                task["task_description"],
+                task["financial_data"],
             )
-
             action = FinancialAnalysisAction(**action_dict)
-
             result = env.step(action)
 
-            reward = result.reward or 0.0
-            done = result.done
-
-            rewards.append(reward)
-            steps_taken = step
+            reward = result.reward if result.reward is not None else 0.02
+            done   = result.done
+            all_rewards.append(reward)
 
             log_step(
-                step=step,
-                action=str(action_dict),
+                step=step_num,
+                action=f"financial_analysis_{task['difficulty']}",
                 reward=reward,
                 done=done,
-                error=None,
+            )
+            env.close()
+
+        except Exception as e:
+            # Floor at 0.02 so error steps are still strictly in (0, 1)
+            all_rewards.append(0.02)
+            log_step(
+                step=step_num,
+                action="error",
+                reward=0.02,
+                done=True,
+                error=str(e).replace("\n", " "),
             )
 
-            if done:
-                break
-
-        score = min(max(sum(rewards), 0.0), 1.0)
-        success = score >= SUCCESS_THRESHOLD
-
-    finally:
-        env.close()
-        log_end(success, steps_taken, score, rewards)
+    success = all(r >= SUCCESS_THRESHOLD for r in all_rewards)
+    log_end(success=success, steps=len(all_rewards), rewards=all_rewards)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
