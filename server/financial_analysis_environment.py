@@ -8,6 +8,7 @@ from the class metadata.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import random
 from uuid import uuid4
 from typing import Any
@@ -25,6 +26,11 @@ from financial_analysis_env.environment import (
     _clamp,
 )
 
+
+@dataclass
+class EnvironmentState:
+    episode_id: str
+    step_count: int
 
 class FinancialAnalysisOpenEnv:
     """Native environment class for the OpenEnv framework.
@@ -103,12 +109,11 @@ class FinancialAnalysisOpenEnv:
     ) -> FinancialAnalysisObservation:
         return self.step(action, **kwargs)
 
-    @property
-    def state(self) -> dict:
-        return {
-            "episode_id": self._env._episode_id,
-            "step_count": self._step_count,
-        }
+    def state(self) -> EnvironmentState:
+        return EnvironmentState(
+            episode_id=self._env._episode_id,
+            step_count=self._step_count,
+        )
 
     def close(self) -> None:
         self._env._current_task = None
